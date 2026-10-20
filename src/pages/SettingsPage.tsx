@@ -94,7 +94,7 @@ export default function SettingsPage() {
     setExportingBackup(true);
     try {
       const date = new Date().toISOString().split('T')[0];
-      await downloadFile('/backup/export', `ironpulse_backup_${date}.json`);
+      await downloadFile('/backup/export', `fitnessvilla_backup_${date}.json`);
     } catch (err: any) {
       alert(err.message || 'Backup export failed');
     } finally {
@@ -327,7 +327,7 @@ export default function SettingsPage() {
           <div className="settings-section">
             <h3><Upload size={17} /> 2. Restore Database from Backup</h3>
             <p className="muted" style={{ marginBottom: '16px' }}>
-              Upload a previously exported IronPulse JSON backup file to restore records.
+              Upload a previously exported Fitness Villa JSON backup file to restore records.
             </p>
 
             <form onSubmit={handleRestoreSubmit} style={{ display: 'grid', gap: '16px', maxWidth: '600px' }}>

@@ -70,7 +70,7 @@ export default function ReceiptModal({
         <div className="printable-receipt" id="printable-area">
           <div className="receipt-header">
             <div className="receipt-brand">FITNESS <span className="accent">VILLA</span></div>
-            <div className="receipt-subtitle">{receipt.gymName || 'IronPulse Fitness Club'}</div>
+            <div className="receipt-subtitle">{receipt.gymName || 'Fitness Villa'}</div>
             {receipt.gymAddress && <div className="receipt-meta">{receipt.gymAddress}</div>}
             <div className="receipt-meta">
               {receipt.gymPhone ? `Tel: ${receipt.gymPhone}` : ''}

@@ -16,11 +16,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('ironpulse_token');
+    const token = localStorage.getItem('fitnessvilla_token') || localStorage.getItem('ironpulse_token');
     if (!token) { setLoading(false); return; }
     api<{ user: User }>('/auth/me')
       .then(r => setUser(r.user))
-      .catch(() => localStorage.removeItem('ironpulse_token'))
+      .catch(() => {
+        localStorage.removeItem('fitnessvilla_token');
+        localStorage.removeItem('ironpulse_token');
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -29,11 +32,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
-    localStorage.setItem('ironpulse_token', r.token);
+    localStorage.setItem('fitnessvilla_token', r.token);
     setUser(r.user);
   }
 
   function logout() {
+    localStorage.removeItem('fitnessvilla_token');
     localStorage.removeItem('ironpulse_token');
     setUser(null);
   }

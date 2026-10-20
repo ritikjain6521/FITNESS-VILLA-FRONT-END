@@ -14,7 +14,7 @@ const getApiBase = (): string => {
 export const BASE = getApiBase();
 
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = localStorage.getItem('ironpulse_token');
+  const token = localStorage.getItem('fitnessvilla_token') || localStorage.getItem('ironpulse_token');
   const headers: Record<string, string> = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers as Record<string, string>),
@@ -36,7 +36,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
 }
 
 export async function downloadFile(path: string, filename: string): Promise<void> {
-  const token = localStorage.getItem('ironpulse_token');
+  const token = localStorage.getItem('fitnessvilla_token') || localStorage.getItem('ironpulse_token');
   const response = await fetch(`${BASE}${path}`, {
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
