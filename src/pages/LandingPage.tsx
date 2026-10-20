@@ -264,7 +264,10 @@ export default function LandingPage() {
           <span>DISCIPLINE BUILDS MOMENTUM · LUXURY MEETS STRENGTH</span>
           <span className="social"><Instagram size={17}/> @FITNESSVILLA_OFFICIAL</span>
         </div>
-        <div className="wrap copyright">© {new Date().getFullYear()} Fitness Villa Luxury Fitness Club. All rights reserved.</div>
+        <div className="wrap copyright">
+          © {new Date().getFullYear()} Fitness Villa Luxury Fitness Club. All rights reserved.
+          <span className="dev-credit">Made with <span className="heart">❤️</span> by <a href="#" className="dev-link">Mahaveer Web Solution</a></span>
+        </div>
       </footer>
     </div>
   );
