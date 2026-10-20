@@ -26,8 +26,10 @@ dist-ssr
 
 # Environment files
 .env
-.env.*
+.env.local
+.env.*.local
 !.env.example
+!.env.production
 
 # TypeScript build info
 *.tsbuildinfo

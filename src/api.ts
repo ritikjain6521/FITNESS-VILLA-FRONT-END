@@ -1,4 +1,17 @@
-export const BASE = ((import.meta as any).env?.VITE_API_URL as string) || 'http://localhost:5000/api/v1';
+const getApiBase = (): string => {
+  const envUrl = ((import.meta as any).env?.VITE_API_URL as string)?.trim();
+  if (envUrl) {
+    const clean = envUrl.replace(/\/+$/, '');
+    return clean.endsWith('/api/v1') ? clean : `${clean}/api/v1`;
+  }
+  // In production (Vercel), default to the deployed Render backend
+  if ((import.meta as any).env?.PROD) {
+    return 'https://fitness-villa-back-end.onrender.com/api/v1';
+  }
+  return 'http://localhost:5000/api/v1';
+};
+
+export const BASE = getApiBase();
 
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('ironpulse_token');
