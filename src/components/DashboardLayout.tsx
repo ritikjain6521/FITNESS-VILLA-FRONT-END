@@ -51,6 +51,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             <small className="pill">{user?.role}</small>
           </div>
           <button className="icon-btn" onClick={handleLogout} title="Sign out"><LogOut size={17}/></button>
+        </div>
         <div className="sidebar-credit">
           Made with <span className="heart">❤️</span> <span>Mahaveer Web Solution</span>
         </div>
