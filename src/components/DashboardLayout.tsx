@@ -2,22 +2,27 @@ import { useState, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   Activity, Users, CreditCard, CalendarCheck, BarChart2,
-  ShoppingBag, DollarSign, Settings, LogOut, Menu, X,
-  Home, Bell, FileText, ChevronRight, Package
+  DollarSign, Settings, LogOut, Menu, X,
+  Home, Bell, FileText, ChevronRight, Package, Tag, RefreshCw, Megaphone
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
-const nav = [
+type NavItem = { to: string; label: string; icon: any; roles?: string[] };
+
+const allNav: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: Home },
-  { to: '/dashboard/members', label: 'Members', icon: Users },
-  { to: '/dashboard/memberships', label: 'Memberships', icon: CreditCard },
-  { to: '/dashboard/attendance', label: 'Attendance', icon: CalendarCheck },
-  { to: '/dashboard/payments', label: 'Payments', icon: DollarSign },
-  { to: '/dashboard/expenses', label: 'Expenses', icon: FileText },
-  { to: '/dashboard/inventory', label: 'Inventory', icon: Package },
-  { to: '/dashboard/reports', label: 'Reports', icon: BarChart2 },
-  { to: '/dashboard/enquiries', label: 'Enquiries', icon: Bell },
-  { to: '/dashboard/settings', label: 'Settings', icon: Settings },
+  { to: '/dashboard/members', label: 'Members', icon: Users, roles: ['admin', 'staff', 'trainer'] },
+  { to: '/dashboard/plans', label: 'Membership Plans', icon: Tag, roles: ['admin'] },
+  { to: '/dashboard/memberships', label: 'Memberships', icon: CreditCard, roles: ['admin', 'staff', 'trainer'] },
+  { to: '/dashboard/renewal-requests', label: 'Renewal Requests', icon: RefreshCw, roles: ['admin', 'staff'] },
+  { to: '/dashboard/attendance', label: 'Attendance', icon: CalendarCheck, roles: ['admin', 'staff', 'trainer'] },
+  { to: '/dashboard/payments', label: 'Payments', icon: DollarSign, roles: ['admin', 'staff'] },
+  { to: '/dashboard/announcements', label: 'Announcements', icon: Megaphone, roles: ['admin', 'staff'] },
+  { to: '/dashboard/expenses', label: 'Expenses', icon: FileText, roles: ['admin', 'staff'] },
+  { to: '/dashboard/inventory', label: 'Inventory', icon: Package, roles: ['admin', 'staff'] },
+  { to: '/dashboard/reports', label: 'Reports', icon: BarChart2, roles: ['admin', 'staff'] },
+  { to: '/dashboard/enquiries', label: 'Enquiries', icon: Bell, roles: ['admin', 'staff'] },
+  { to: '/dashboard/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
 ];
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
@@ -26,6 +31,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
 
   function handleLogout() { logout(); navigate('/'); }
+
+  const role = user?.role || 'member';
+  const nav = allNav.filter(n => !n.roles || n.roles.includes(role));
 
   return (
     <div className="dash-shell">

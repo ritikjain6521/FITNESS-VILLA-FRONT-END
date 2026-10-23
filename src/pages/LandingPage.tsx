@@ -8,6 +8,7 @@ type Plan = { _id: string; name: string; description: string; pricePaise: number
 
 export default function LandingPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
   const [menu, setMenu] = useState(false);
   const [enquiry, setEnquiry] = useState({ name: '', email: '', phone: '', message: '', interest: 'membership', consentGiven: false });
   const [sending, setSending] = useState(false);
@@ -17,6 +18,7 @@ export default function LandingPage() {
 
   useEffect(() => {
     api<{ items: Plan[] }>('/plans').then(r => setPlans(r.items)).catch(() => setPlans([]));
+    api<{ items: any[] }>('/announcements').then(r => setAnnouncements(r.items || [])).catch(() => setAnnouncements([]));
   }, []);
 
   async function submitEnquiry(e: React.FormEvent) {
@@ -30,11 +32,51 @@ export default function LandingPage() {
     } finally { setSending(false); }
   }
 
+  const topOffer = announcements.find(a => a.type === 'offer') || announcements[0];
+
   return (
     <div className="app-shell">
       {/* Background ambient glowing auras */}
       <div className="ambient-glow glow-1"/>
       <div className="ambient-glow glow-2"/>
+
+      {/* Top Announcements & Offers Ticker / Banner */}
+      {topOffer && (
+        <div style={{
+          background: 'linear-gradient(90deg, rgba(20, 32, 23, 0.95), rgba(12, 20, 14, 0.95))',
+          borderBottom: '1px solid rgba(181, 242, 61, 0.35)',
+          padding: '8px 16px',
+          textAlign: 'center',
+          fontSize: '12px',
+          color: '#e0e5de',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+          position: 'relative',
+          zIndex: 50,
+        }}>
+          <Flame size={15} style={{ color: 'var(--green)' }} />
+          <span>
+            <strong style={{ color: '#fff', letterSpacing: '0.4px' }}>{topOffer.title}:</strong>{' '}
+            {topOffer.content.length > 90 ? `${topOffer.content.slice(0, 90)}…` : topOffer.content}
+          </span>
+          <a
+            href="#membership"
+            style={{
+              color: 'var(--green)',
+              fontWeight: 800,
+              marginLeft: '8px',
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '2px',
+            }}
+          >
+            Claim Offer →
+          </a>
+        </div>
+      )}
 
       <header className="nav wrap">
         <a className="brand" href="/">
@@ -47,9 +89,12 @@ export default function LandingPage() {
           <a href="#membership" onClick={() => setMenu(false)}>Membership</a>
           <a href="#facility" onClick={() => setMenu(false)}>The Villa Facility</a>
           <a href="#contact" onClick={() => setMenu(false)}>Contact &amp; Visit</a>
+          <button className="btn btn-outline nav-cta hover-glow mobile-nav-btn" onClick={() => { setMenu(false); user ? navigate('/dashboard') : navigate('/login'); }}>
+            {user ? 'Dashboard' : 'Member Access'} <ArrowUpRight size={16}/>
+          </button>
         </nav>
-        <button className="btn btn-outline nav-cta hover-glow" onClick={() => user ? navigate('/dashboard') : navigate('/login')}>
-          {user ? 'Dashboard' : 'Member Login'} <ArrowUpRight size={16}/>
+        <button className="btn btn-outline nav-cta hover-glow desktop-nav-btn" onClick={() => user ? navigate('/dashboard') : navigate('/login')}>
+          {user ? 'Dashboard' : 'Member Access'} <ArrowUpRight size={16}/>
         </button>
       </header>
 
@@ -262,7 +307,12 @@ export default function LandingPage() {
             <span>FITNESS <span className="accent">VILLA</span><small>LUXURY &amp; PERFORMANCE</small></span>
           </a>
           <span>DISCIPLINE BUILDS MOMENTUM · LUXURY MEETS STRENGTH</span>
-          <span className="social"><Instagram size={17}/> @FITNESSVILLA_OFFICIAL</span>
+          <div className="footer-actions">
+            <button className="footer-login-btn" onClick={() => user ? navigate('/dashboard') : navigate('/login')}>
+              <ShieldCheck size={16}/> {user ? 'Dashboard' : 'Member Access / Login'}
+            </button>
+            <span className="social"><Instagram size={17}/> @FITNESSVILLA_OFFICIAL</span>
+          </div>
         </div>
         <div className="wrap copyright">
           © {new Date().getFullYear()} Fitness Villa Luxury Fitness Club. All rights reserved.
