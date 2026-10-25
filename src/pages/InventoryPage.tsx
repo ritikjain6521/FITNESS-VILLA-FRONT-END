@@ -13,8 +13,15 @@ import {
   Share2,
   X,
   FileSpreadsheet,
+  BookOpen,
+  HelpCircle,
+  CheckCircle2,
+  ChevronRight,
+  Info,
+  Zap,
 } from 'lucide-react';
 import ReceiptModal, { ReceiptData } from '../components/ReceiptModal';
+import { openRazorpayCheckout } from '../razorpay';
 
 type Product = {
   _id: string;
@@ -80,6 +87,19 @@ export default function InventoryPage() {
   const [showPurchase, setShowPurchase] = useState(false);
   const [activeReceipt, setActiveReceipt] = useState<ReceiptData | null>(null);
 
+  // User Guidance state
+  const [showGuide, setShowGuide] = useState(() => {
+    return localStorage.getItem('inventory_guide_open') !== 'false';
+  });
+  const [guideTab, setGuideTab] = useState<'flow' | 'products' | 'purchases' | 'pos' | 'analytics'>('flow');
+
+  function toggleGuide() {
+    setShowGuide((prev) => {
+      localStorage.setItem('inventory_guide_open', String(!prev));
+      return !prev;
+    });
+  }
+
   // New product form
   const [newProd, setNewProd] = useState({
     sku: '',
@@ -104,13 +124,25 @@ export default function InventoryPage() {
   const [posWalkInPhone, setPosWalkInPhone] = useState('');
   const [posItems, setPosItems] = useState<Array<{ product: string; qty: number }>>([]);
   const [posDiscount, setPosDiscount] = useState('0');
-  const [posMethod, setPosMethod] = useState<'cash' | 'upi' | 'card'>('upi');
+  const [posMethod, setPosMethod] = useState<'cash' | 'upi' | 'card' | 'razorpay'>('razorpay');
   const [submittingSale, setSubmittingSale] = useState(false);
 
+  type PurchaseItemRow = {
+    isManual: boolean;
+    product?: string;
+    name?: string;
+    category?: string;
+    qty: number;
+    unitCost: string;
+    sellingPrice?: string;
+  };
+
   // Inward Purchase Form State
+  const [purSupplierType, setPurSupplierType] = useState<'select' | 'manual'>('manual');
   const [purSupplier, setPurSupplier] = useState('');
+  const [purSupplierManual, setPurSupplierManual] = useState('');
   const [purInvoice, setPurInvoice] = useState('');
-  const [purItems, setPurItems] = useState<Array<{ product: string; qty: number; unitCost: string }>>([]);
+  const [purItems, setPurItems] = useState<PurchaseItemRow[]>([]);
   const [purMethod, setPurMethod] = useState('bank_transfer');
   const [purNotes, setPurNotes] = useState('');
   const [submittingPur, setSubmittingPur] = useState(false);
@@ -138,7 +170,6 @@ export default function InventoryPage() {
         setMembers(m.items || []);
         if (p.items.length > 0 && posItems.length === 0) {
           setPosItems([{ product: p.items[0]._id, qty: 1 }]);
-          setPurItems([{ product: p.items[0]._id, qty: 10, unitCost: (p.items[0].purchasePricePaise / 100).toString() }]);
         }
       })
       .catch(() => {})
@@ -206,22 +237,89 @@ export default function InventoryPage() {
     }
   }
 
+  function openPurchaseModal() {
+    const hasSuppliers = suppliers.length > 0;
+    setPurSupplierType(hasSuppliers ? 'select' : 'manual');
+    setPurSupplier(hasSuppliers ? suppliers[0]._id : '');
+    setPurSupplierManual('');
+    setPurInvoice(`PUR-${Date.now().toString().slice(-6)}`);
+    setPurNotes('');
+
+    if (products.length > 0) {
+      setPurItems([
+        {
+          isManual: false,
+          product: products[0]._id,
+          name: products[0].name,
+          category: products[0].category,
+          qty: 10,
+          unitCost: (products[0].purchasePricePaise / 100).toString(),
+          sellingPrice: (products[0].sellingPricePaise / 100).toString(),
+        },
+      ]);
+    } else {
+      setPurItems([
+        {
+          isManual: true,
+          product: '',
+          name: '',
+          category: 'Supplements',
+          qty: 10,
+          unitCost: '500',
+          sellingPrice: '750',
+        },
+      ]);
+    }
+    setShowPurchase(true);
+  }
+
   // Handle Inward Purchase from Supplier
   async function handlePurchaseSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    if (purSupplierType === 'manual' && !purSupplierManual.trim()) {
+      alert('Please enter a supplier name');
+      return;
+    }
+    if (purSupplierType === 'select' && !purSupplier) {
+      alert('Please select a supplier from the list or switch to manual entry');
+      return;
+    }
+    if (purItems.length === 0) {
+      alert('Please add at least one product to purchase');
+      return;
+    }
+
+    for (let i = 0; i < purItems.length; i++) {
+      const it = purItems[i];
+      if (it.isManual && !it.name?.trim()) {
+        alert(`Please enter a name for item #${i + 1}`);
+        return;
+      }
+      if (!it.isManual && !it.product) {
+        alert(`Please select an existing product for item #${i + 1} or switch it to manual`);
+        return;
+      }
+    }
+
     setSubmittingPur(true);
     try {
       await api('/inventory/purchases', {
         method: 'POST',
         body: JSON.stringify({
-          supplier: purSupplier || undefined,
+          supplier: purSupplierType === 'select' && purSupplier ? purSupplier : undefined,
+          supplierName: purSupplierType === 'manual' ? purSupplierManual.trim() : undefined,
           invoiceNumber: purInvoice.trim() || undefined,
           paymentMethod: purMethod,
           notes: purNotes.trim(),
           items: purItems.map((it) => ({
-            product: it.product,
-            qty: Math.max(1, it.qty),
-            unitCostPaise: Math.round(Number(it.unitCost) * 100),
+            product: !it.isManual && it.product ? it.product : undefined,
+            name: it.isManual ? it.name?.trim() : undefined,
+            category: it.isManual ? it.category || 'Supplements' : undefined,
+            sellingPricePaise:
+              it.isManual && it.sellingPrice ? Math.round(Number(it.sellingPrice) * 100) : undefined,
+            qty: Math.max(1, it.qty || 1),
+            unitCostPaise: Math.round(Number(it.unitCost || 0) * 100),
           })),
         }),
       });
@@ -240,6 +338,22 @@ export default function InventoryPage() {
     e.preventDefault();
     setSubmittingSale(true);
     try {
+      if (posMethod === 'razorpay') {
+        const selectedM = members.find((m) => m._id === posCustomer);
+        const customerName = selectedM?.name || posWalkInName || 'Walk-in Customer';
+        const customerPhone = selectedM?.phone || posWalkInPhone;
+        const customerEmail = selectedM?.email;
+
+        await openRazorpayCheckout({
+          amountPaise: posTotalPaise,
+          memberId: posCustomer || undefined,
+          customerName,
+          customerPhone,
+          customerEmail,
+          description: `POS Counter Store Sale`,
+        });
+      }
+
       const res = await api<{
         item: Sale;
         whatsappReceiptUrl?: string;
@@ -320,7 +434,14 @@ export default function InventoryPage() {
           <button className="btn btn-outline" onClick={() => downloadFile('/reports/export/inventory?format=xlsx', 'inventory_stock.xlsx')}>
             <FileSpreadsheet size={15} color="#22c55e" /> Export Excel
           </button>
-          <button className="btn btn-outline" onClick={() => setShowPurchase(true)}>
+          <button
+            className={`btn ${showGuide ? 'btn-green' : 'btn-outline'}`}
+            onClick={toggleGuide}
+            title="Toggle Step-by-Step User Guidance"
+          >
+            <BookOpen size={15} /> {showGuide ? 'Hide Guide' : 'User Guide'}
+          </button>
+          <button className="btn btn-outline" onClick={openPurchaseModal}>
             <Truck size={15} /> Record Inward Purchase
           </button>
           <button className="btn btn-green" onClick={() => setShowPOS(true)}>
@@ -331,6 +452,213 @@ export default function InventoryPage() {
           </button>
         </div>
       </div>
+
+      {/* Interactive User Guidance Banner */}
+      {showGuide && (
+        <div
+          style={{
+            background: 'linear-gradient(145deg, #121915 0%, #0d1210 100%)',
+            border: '1px solid #23382b',
+            borderRadius: '12px',
+            padding: '18px 20px',
+            marginBottom: '20px',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)',
+            position: 'relative',
+          }}
+        >
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px', marginBottom: '14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div
+                style={{
+                  background: 'rgba(34, 197, 94, 0.15)',
+                  color: 'var(--green)',
+                  padding: '8px',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <BookOpen size={20} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '17px', color: '#f3f4f6', fontWeight: 600 }}>
+                  Stock, Purchases & POS Sales — Operations Guide (उपयोग मार्गदर्शिका)
+                </h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '13px', color: '#9ca3af' }}>
+                  Complete step-by-step workflow: Master Products ➔ Inward Purchases ➔ POS Counter Billing ➔ Profit Reports
+                </p>
+              </div>
+            </div>
+
+            <button
+              className="icon-btn"
+              onClick={toggleGuide}
+              title="Close Guide"
+              style={{ background: '#1c2420', color: '#9ca3af' }}
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Sub Tabs */}
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', borderBottom: '1px solid #1f2a23', paddingBottom: '10px', marginBottom: '14px' }}>
+            {[
+              { id: 'flow', label: '⚡ Complete Workflow (पूरा चक्र)' },
+              { id: 'products', label: '📦 1. Add Product' },
+              { id: 'purchases', label: '🚚 2. Record Inward Purchase' },
+              { id: 'pos', label: '🛍️ 3. POS Counter Sale' },
+              { id: 'analytics', label: '📊 4. Margins & Reorder' },
+            ].map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className={`btn btn-xs ${guideTab === t.id ? 'btn-green' : 'btn-outline'}`}
+                style={{
+                  fontSize: '12px',
+                  padding: '5px 12px',
+                  height: 'auto',
+                  borderRadius: '6px',
+                  borderColor: guideTab === t.id ? undefined : '#26332a',
+                }}
+                onClick={() => setGuideTab(t.id as any)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab Content: Flow */}
+          {guideTab === 'flow' && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
+              <div style={{ background: '#151d18', border: '1px solid #233128', borderRadius: '8px', padding: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <span style={{ background: '#064e3b', color: '#6ee7b7', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>STEP 1</span>
+                  <strong style={{ fontSize: '14px', color: '#f3f4f6' }}>Stock Inward (माल अंदर लेना)</strong>
+                </div>
+                <p style={{ fontSize: '12.5px', color: '#9ca3af', lineHeight: 1.5, margin: 0 }}>
+                  सप्लायर से माल आने पर <strong>Record Inward Purchase</strong> दबाएं। सप्लायर का नाम लिखें और खरीदे गए प्रोडक्ट्स दर्ज करें। इससे स्टॉक अपने आप बढ़ जाएगा और जिम का खर्चा भी जुड़ जाएगा।
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-xs"
+                  style={{ marginTop: '10px', fontSize: '11px', width: '100%', justifyContent: 'center' }}
+                  onClick={openPurchaseModal}
+                >
+                  <Truck size={13} /> Record Inward Stock
+                </button>
+              </div>
+
+              <div style={{ background: '#151d18', border: '1px solid #233128', borderRadius: '8px', padding: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <span style={{ background: '#1e3a8a', color: '#93c5fd', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>STEP 2</span>
+                  <strong style={{ fontSize: '14px', color: '#f3f4f6' }}>POS Counter Sale (काउंटर बिलिंग)</strong>
+                </div>
+                <p style={{ fontSize: '12.5px', color: '#9ca3af', lineHeight: 1.5, margin: 0 }}>
+                  मेंबर या वॉक-इन ग्राहक को बेचते समय <strong>POS Counter Sale</strong> खोलें। प्रोडक्ट चुनें, डिस्काउंट दें और बिल बनाएं। तुरंत <strong>WhatsApp रसीद</strong> या <strong>प्रिंट बिल</strong> निकालें।
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-xs"
+                  style={{ marginTop: '10px', fontSize: '11px', width: '100%', justifyContent: 'center', borderColor: 'var(--green)', color: 'var(--green)' }}
+                  onClick={() => setShowPOS(true)}
+                >
+                  <ShoppingBag size={13} /> Open POS Counter
+                </button>
+              </div>
+
+              <div style={{ background: '#151d18', border: '1px solid #233128', borderRadius: '8px', padding: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <span style={{ background: '#78350f', color: '#fcd34d', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>STEP 3</span>
+                  <strong style={{ fontSize: '14px', color: '#f3f4f6' }}>Profit & Reorders (निगरानी)</strong>
+                </div>
+                <p style={{ fontSize: '12.5px', color: '#9ca3af', lineHeight: 1.5, margin: 0 }}>
+                  जब भी कोई प्रोडक्ट रीऑर्डर सीमा से कम होगा, आपको <strong>Low Stock Alert</strong> दिखेगा। <strong>Profit & Margins</strong> टैब में देखें कि जिम ने इन्वेंटरी से कितना शुद्ध मुनाफा कमाया।
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-xs"
+                  style={{ marginTop: '10px', fontSize: '11px', width: '100%', justifyContent: 'center' }}
+                  onClick={() => setActiveTab('analytics')}
+                >
+                  <TrendingUp size={13} /> View Profit Margins
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Tab Content: Add Product */}
+          {guideTab === 'products' && (
+            <div style={{ background: '#151d18', border: '1px solid #233128', borderRadius: '8px', padding: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <strong style={{ fontSize: '15px', color: '#f3f4f6' }}>📦 How to Use: Add Product (नया आइटम जोड़ना)</strong>
+                <button className="btn btn-green btn-xs" onClick={() => setShowAddProd(true)}>
+                  <Plus size={13} /> + Open Add Product
+                </button>
+              </div>
+              <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', color: '#d1d5db', lineHeight: 1.7 }}>
+                <li><strong>कब करें:</strong> जब कोई नया आइटम (ब्रांड, शेकर, प्रोटीन, मर्चेंडाइज) जिम में पहली बार बेचना हो।</li>
+                <li><strong>SKU Code:</strong> प्रोडक्ट का एक यूनिक कोड दर्ज करें (उदा. <code>ON-WHEY-1KG</code> या बारकोड) जो बिलिंग में तुरंत सर्च करने में मदद करे।</li>
+                <li><strong>Purchase Price vs Selling Price:</strong> लागत मूल्य (Cost) और बिक्री मूल्य (MRP) डालें ताकि सिस्टम आपका ग्रॉस प्रॉफिट मार्जिन (%) खुद निकाल सके।</li>
+                <li><strong>Reorder Alert Threshold:</strong> न्यूनतम सीमा (जैसे 5 पीस) तय करें। जब भी स्टॉक इस नंबर पर या इससे नीचे पहुंचेगा, सिस्टम आपको अलर्ट देगा।</li>
+              </ul>
+            </div>
+          )}
+
+          {/* Tab Content: Purchases */}
+          {guideTab === 'purchases' && (
+            <div style={{ background: '#151d18', border: '1px solid #233128', borderRadius: '8px', padding: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <strong style={{ fontSize: '15px', color: '#f3f4f6' }}>🚚 How to Use: Record Inward Purchase (खरीद दर्ज करना)</strong>
+                <button className="btn btn-green btn-xs" onClick={openPurchaseModal}>
+                  <Truck size={13} /> Open Purchase Form
+                </button>
+              </div>
+              <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', color: '#d1d5db', lineHeight: 1.7 }}>
+                <li><strong>सप्लायर मैनुअल एंट्री:</strong> यदि सप्लायर पहले से सेव नहीं है, तो <code>✍️ Manual Entry</code> बटन दबाकर सीधे सप्लायर/डिस्ट्रीब्यूटर का नाम टाइप करें। सिस्टम इसे अपने आप डेटाबेस में सेव कर लेगा।</li>
+                <li><strong>इनलाइन नया प्रोडक्ट जोड़ना:</strong> अगर इस खरीद में कोई नया प्रोडक्ट आया है, तो <code>+ ✍️ Manual / New Product</code> बटन दबाएं। आप सीधे प्रोडक्ट का नाम, कैटेगरी, खरीद रेट और बिक्री रेट एक साथ दर्ज कर सकते हैं — अलग से पहले प्रोडक्ट बनाने की ज़रूरत नहीं!</li>
+                <li><strong>ऑटोमैटिक स्टॉक & खर्चा:</strong> बिल सबमिट करते ही प्रोडक्ट का स्टॉक बढ़ जाएगा और जिम के एकाउंट्स/खर्चों में इसका बिल अपने आप जुड़ जाएगा।</li>
+              </ul>
+            </div>
+          )}
+
+          {/* Tab Content: POS */}
+          {guideTab === 'pos' && (
+            <div style={{ background: '#151d18', border: '1px solid #233128', borderRadius: '8px', padding: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <strong style={{ fontSize: '15px', color: '#f3f4f6' }}>🛍️ How to Use: POS Counter Sale (काउंटर बिक्री & रसीद)</strong>
+                <button className="btn btn-green btn-xs" onClick={() => setShowPOS(true)}>
+                  <ShoppingBag size={13} /> Open POS Checkout
+                </button>
+              </div>
+              <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', color: '#d1d5db', lineHeight: 1.7 }}>
+                <li><strong>ग्राहक चयन:</strong> अगर खरीदार जिम का मेंबर है तो लिस्ट से उसका नाम चुनें (उसकी खरीद हिस्ट्री में दर्ज होगा)। अगर बाहरी ग्राहक है तो 'Walk-in Customer' रखकर नाम और WhatsApp नंबर डालें।</li>
+                <li><strong>मल्टी-आइटम कार्ट:</strong> <code>+ Add Another Product</code> दबाकर एक ही बिल में कई प्रोडक्ट्स बेच सकते हैं।</li>
+                <li><strong>डिस्काउंट & पेमेंट:</strong> अगर कोई छूट देनी हो तो डिस्काउंट (₹) भरें और UPI / Cash / Card चुनें।</li>
+                <li><strong>डिजिटल रसीद & WhatsApp:</strong> बिक्री पूरी होते ही स्क्रीन पर ऑफिशियल रसीद आ जाती है, जिसे एक क्लिक में ग्राहक के WhatsApp पर भेजा या प्रिंट किया जा सकता है।</li>
+              </ul>
+            </div>
+          )}
+
+          {/* Tab Content: Analytics */}
+          {guideTab === 'analytics' && (
+            <div style={{ background: '#151d18', border: '1px solid #233128', borderRadius: '8px', padding: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <strong style={{ fontSize: '15px', color: '#f3f4f6' }}>📊 How to Use: Profit Margins & Stock Control (मार्जिन और स्टॉक निगरानी)</strong>
+                <button className="btn btn-outline btn-xs" onClick={() => downloadFile('/reports/export/inventory?format=xlsx', 'inventory_stock.xlsx')}>
+                  <FileSpreadsheet size={13} color="#22c55e" /> Download Excel
+                </button>
+              </div>
+              <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', color: '#d1d5db', lineHeight: 1.7 }}>
+                <li><strong>Low Stock Filter:</strong> ऊपर 'Show low stock only' पर टिक करने से केवल वही प्रोडक्ट्स दिखेंगे जो खत्म होने वाले हैं।</li>
+                <li><strong>Profit & Margins Tab:</strong> यह आपको बताता है कि वर्तमान में आपके स्टोर रूम में कितने रुपये का माल रखा है (Cost vs Selling Valuation) और बिक्री पर कुल कितना ग्रॉस मार्जिन (%) कमाया।</li>
+                <li><strong>Excel Export:</strong> पूरा इन्वेंटरी स्टॉक, खरीद लागत, बिक्री मूल्य और बैलेंस किसी भी समय Excel फाइल में डाउनलोड करें।</li>
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       {lowStockCount > 0 && (
         <div className="alert-banner">
@@ -650,9 +978,10 @@ export default function InventoryPage() {
                 </label>
                 <label>Payment Method
                   <select value={posMethod} onChange={(e) => setPosMethod(e.target.value as any)}>
-                    <option value="upi">UPI / GPay / QR</option>
+                    <option value="razorpay">⚡ Razorpay Online Gateway (Live UPI QR / Cards / Netbanking)</option>
+                    <option value="upi">UPI / GPay / QR (Manual)</option>
                     <option value="cash">Cash</option>
-                    <option value="card">Card / POS Machine</option>
+                    <option value="card">Card / POS Machine (Offline)</option>
                   </select>
                 </label>
               </div>
@@ -668,7 +997,11 @@ export default function InventoryPage() {
                   Cancel
                 </button>
                 <button type="submit" className="btn btn-green" style={{ flex: 1 }} disabled={submittingSale || posItems.length === 0}>
-                  {submittingSale ? 'Processing…' : 'Complete Sale & Generate Receipt'}
+                  {submittingSale
+                    ? 'Processing…'
+                    : posMethod === 'razorpay'
+                    ? '⚡ Pay via Razorpay & Generate Receipt'
+                    : 'Complete Sale & Generate Receipt'}
                 </button>
               </div>
             </form>
@@ -679,7 +1012,7 @@ export default function InventoryPage() {
       {/* Record Inward Purchase Modal */}
       {showPurchase && (
         <div className="modal-backdrop" onClick={() => setShowPurchase(false)}>
-          <div className="login-modal" style={{ maxWidth: '600px' }} onClick={(e) => e.stopPropagation()}>
+          <div className="login-modal" style={{ maxWidth: '720px' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div className="eyebrow">INWARD STOCK</div>
@@ -689,82 +1022,359 @@ export default function InventoryPage() {
             </div>
 
             <form onSubmit={handlePurchaseSubmit} style={{ display: 'grid', gap: '14px', marginTop: '16px' }}>
-              <div className="modal-grid-2">
-                <label>Supplier
-                  <select value={purSupplier} onChange={(e) => setPurSupplier(e.target.value)}>
-                    <option value="">-- Choose Supplier --</option>
-                    {suppliers.map((s) => (
-                      <option key={s._id} value={s._id}>{s.name}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>Supplier Invoice / Bill No
-                  <input value={purInvoice} onChange={(e) => setPurInvoice(e.target.value)} placeholder="e.g. INV-2026-908" />
-                </label>
-              </div>
+              {/* Supplier & Invoice Number */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '12px' }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>Supplier / Vendor</span>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <button
+                        type="button"
+                        className={`btn btn-xs ${purSupplierType === 'select' ? 'btn-green' : 'btn-outline'}`}
+                        style={{ padding: '2px 8px', fontSize: '11px', height: 'auto', minHeight: 0 }}
+                        onClick={() => {
+                          setPurSupplierType('select');
+                          if (!purSupplier && suppliers.length > 0) setPurSupplier(suppliers[0]._id);
+                        }}
+                        disabled={suppliers.length === 0}
+                        title={suppliers.length === 0 ? 'No suppliers saved yet' : 'Select from existing suppliers'}
+                      >
+                        📋 Saved ({suppliers.length})
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn btn-xs ${purSupplierType === 'manual' ? 'btn-green' : 'btn-outline'}`}
+                        style={{ padding: '2px 8px', fontSize: '11px', height: 'auto', minHeight: 0 }}
+                        onClick={() => setPurSupplierType('manual')}
+                      >
+                        ✍️ Manual Entry
+                      </button>
+                    </div>
+                  </div>
 
-              <div>
-                <label style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                  <span>Purchased Products</span>
-                  <button
-                    type="button"
-                    className="btn btn-outline btn-sm"
-                    onClick={() => {
-                      if (products.length > 0) {
-                        setPurItems([...purItems, { product: products[0]._id, qty: 10, unitCost: '400' }]);
-                      }
-                    }}
-                  >
-                    + Add Product Batch
-                  </button>
-                </label>
-                {purItems.map((item, idx) => (
-                  <div key={idx} className="pos-item-row">
+                  {purSupplierType === 'select' && suppliers.length > 0 ? (
                     <select
-                      style={{ flex: 3 }}
-                      value={item.product}
+                      value={purSupplier}
                       onChange={(e) => {
-                        const next = [...purItems];
-                        next[idx].product = e.target.value;
-                        setPurItems(next);
+                        if (e.target.value === '__NEW__') {
+                          setPurSupplierType('manual');
+                        } else {
+                          setPurSupplier(e.target.value);
+                        }
                       }}
                     >
-                      {products.map((p) => (
-                        <option key={p._id} value={p._id}>{p.name} ({p.sku})</option>
+                      <option value="">-- Choose Existing Supplier --</option>
+                      {suppliers.map((s) => (
+                        <option key={s._id} value={s._id}>
+                          {s.name} {s.phone ? `(${s.phone})` : ''}
+                        </option>
                       ))}
+                      <option value="__NEW__">➕ Type New Supplier Manually...</option>
                     </select>
-                    <input
-                      style={{ flex: 1 }}
-                      type="number"
-                      min="1"
-                      value={item.qty}
-                      onChange={(e) => {
-                        const next = [...purItems];
-                        next[idx].qty = parseInt(e.target.value, 10) || 1;
-                        setPurItems(next);
-                      }}
-                      placeholder="Qty"
-                    />
-                    <input
-                      style={{ flex: 1.5 }}
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={item.unitCost}
-                      onChange={(e) => {
-                        const next = [...purItems];
-                        next[idx].unitCost = e.target.value;
-                        setPurItems(next);
-                      }}
-                      placeholder="Cost (₹)"
-                    />
-                    {purItems.length > 1 && (
-                      <button type="button" className="icon-btn danger" onClick={() => setPurItems(purItems.filter((_, i) => i !== idx))}>
-                        <X size={15} />
+                  ) : (
+                    <div>
+                      <input
+                        value={purSupplierManual}
+                        onChange={(e) => setPurSupplierManual(e.target.value)}
+                        placeholder="Type Supplier Name (e.g. Optimum Nutrition, MuscleBlaze, Star Distributors)"
+                        required
+                        style={{ borderColor: purSupplierManual.trim() ? 'var(--green)' : undefined }}
+                      />
+                      {suppliers.length === 0 && (
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
+                          💡 No suppliers saved yet. Enter the supplier name above and it will be saved automatically.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '13px', fontWeight: 600, marginBottom: '6px', display: 'block' }}>
+                    Supplier Invoice / Bill No
+                  </label>
+                  <input
+                    value={purInvoice}
+                    onChange={(e) => setPurInvoice(e.target.value)}
+                    placeholder="e.g. INV-2026-908"
+                  />
+                </div>
+              </div>
+
+              {/* Purchased Products */}
+              <div style={{ marginTop: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '14px', fontWeight: 600 }}>Purchased Products</span>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {products.length > 0 && (
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        style={{ fontSize: '12px', padding: '4px 10px' }}
+                        onClick={() => {
+                          setPurItems([
+                            ...purItems,
+                            {
+                              isManual: false,
+                              product: products[0]._id,
+                              name: products[0].name,
+                              category: products[0].category,
+                              qty: 10,
+                              unitCost: (products[0].purchasePricePaise / 100).toString(),
+                              sellingPrice: (products[0].sellingPricePaise / 100).toString(),
+                            },
+                          ]);
+                        }}
+                      >
+                        + Existing Product
                       </button>
                     )}
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      style={{ fontSize: '12px', padding: '4px 10px', borderColor: 'var(--green)', color: 'var(--green)' }}
+                      onClick={() => {
+                        setPurItems([
+                          ...purItems,
+                          {
+                            isManual: true,
+                            name: '',
+                            category: 'Supplements',
+                            qty: 10,
+                            unitCost: '500',
+                            sellingPrice: '750',
+                          },
+                        ]);
+                      }}
+                    >
+                      + ✍️ Manual / New Product
+                    </button>
                   </div>
-                ))}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '280px', overflowY: 'auto', paddingRight: '2px' }}>
+                  {purItems.map((item, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        background: '#121714',
+                        border: '1px solid #232b24',
+                        borderRadius: '8px',
+                        padding: '10px 12px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)' }}>
+                          Item #{idx + 1} &nbsp;
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              background: item.isManual ? '#1f2937' : '#064e3b',
+                              color: item.isManual ? '#9ca3af' : '#6ee7b7',
+                            }}
+                          >
+                            {item.isManual ? '✍️ Manual New Product' : '📦 Existing Product'}
+                          </span>
+                        </span>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {products.length > 0 && (
+                            <button
+                              type="button"
+                              className="btn btn-xs btn-outline"
+                              style={{ padding: '1px 6px', fontSize: '11px', height: 'auto', minHeight: 0 }}
+                              onClick={() => {
+                                const next = [...purItems];
+                                if (next[idx].isManual) {
+                                  next[idx].isManual = false;
+                                  next[idx].product = products[0]._id;
+                                  next[idx].unitCost = (products[0].purchasePricePaise / 100).toString();
+                                  next[idx].sellingPrice = (products[0].sellingPricePaise / 100).toString();
+                                } else {
+                                  next[idx].isManual = true;
+                                  next[idx].name = '';
+                                  next[idx].category = 'Supplements';
+                                  next[idx].sellingPrice = '750';
+                                }
+                                setPurItems(next);
+                              }}
+                            >
+                              {item.isManual ? 'Switch to Existing' : 'Switch to Manual Entry'}
+                            </button>
+                          )}
+                          {purItems.length > 1 && (
+                            <button
+                              type="button"
+                              className="icon-btn danger"
+                              style={{ width: '22px', height: '22px' }}
+                              onClick={() => setPurItems(purItems.filter((_, i) => i !== idx))}
+                            >
+                              <X size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {item.isManual ? (
+                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.8fr 1fr 1fr', gap: '8px', alignItems: 'center' }}>
+                          <div>
+                            <input
+                              placeholder="Product Name (e.g. Whey Gold 1kg)"
+                              value={item.name || ''}
+                              onChange={(e) => {
+                                const next = [...purItems];
+                                next[idx].name = e.target.value;
+                                setPurItems(next);
+                              }}
+                              required
+                            />
+                          </div>
+                          <div>
+                            <select
+                              value={item.category || 'Supplements'}
+                              onChange={(e) => {
+                                const next = [...purItems];
+                                next[idx].category = e.target.value;
+                                setPurItems(next);
+                              }}
+                            >
+                              <option value="Supplements">Supplements</option>
+                              <option value="Equipment">Equipment</option>
+                              <option value="Accessories">Accessories</option>
+                              <option value="Beverages">Beverages</option>
+                              <option value="Apparel">Apparel</option>
+                              <option value="Other">Other</option>
+                            </select>
+                          </div>
+                          <div>
+                            <input
+                              type="number"
+                              min="1"
+                              placeholder="Qty"
+                              value={item.qty}
+                              onChange={(e) => {
+                                const next = [...purItems];
+                                next[idx].qty = parseInt(e.target.value, 10) || 1;
+                                setPurItems(next);
+                              }}
+                              title="Quantity received"
+                            />
+                          </div>
+                          <div>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="Cost ₹"
+                              value={item.unitCost}
+                              onChange={(e) => {
+                                const next = [...purItems];
+                                next[idx].unitCost = e.target.value;
+                                setPurItems(next);
+                              }}
+                              title="Unit Purchase Cost"
+                            />
+                          </div>
+                          <div>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="Sell ₹"
+                              value={item.sellingPrice || ''}
+                              onChange={(e) => {
+                                const next = [...purItems];
+                                next[idx].sellingPrice = e.target.value;
+                                setPurItems(next);
+                              }}
+                              title="Selling Price / MRP"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 1.2fr', gap: '8px', alignItems: 'center' }}>
+                          <div>
+                            <select
+                              value={item.product}
+                              onChange={(e) => {
+                                const p = products.find((prod) => prod._id === e.target.value);
+                                const next = [...purItems];
+                                next[idx].product = e.target.value;
+                                if (p) {
+                                  next[idx].unitCost = (p.purchasePricePaise / 100).toString();
+                                  next[idx].sellingPrice = (p.sellingPricePaise / 100).toString();
+                                }
+                                setPurItems(next);
+                              }}
+                            >
+                              {products.map((p) => (
+                                <option key={p._id} value={p._id}>
+                                  {p.name} ({p.sku}) — {p.currentQty} in stock
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <input
+                              type="number"
+                              min="1"
+                              placeholder="Qty"
+                              value={item.qty}
+                              onChange={(e) => {
+                                const next = [...purItems];
+                                next[idx].qty = parseInt(e.target.value, 10) || 1;
+                                setPurItems(next);
+                              }}
+                              title="Quantity received"
+                            />
+                          </div>
+                          <div>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="Cost ₹"
+                              value={item.unitCost}
+                              onChange={(e) => {
+                                const next = [...purItems];
+                                next[idx].unitCost = e.target.value;
+                                setPurItems(next);
+                              }}
+                              title="Unit Purchase Cost"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Live Cost Summary */}
+              <div
+                style={{
+                  background: '#181f1a',
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <span style={{ fontSize: '13px', color: 'var(--muted)' }}>Total Purchase Cost:</span>
+                <strong style={{ fontSize: '18px', color: 'var(--green)' }}>
+                  {money(
+                    purItems.reduce(
+                      (sum, it) => sum + Math.round(Number(it.unitCost || 0) * 100) * Math.max(1, it.qty || 1),
+                      0
+                    )
+                  )}
+                </strong>
               </div>
 
               <div className="modal-grid-2">
@@ -774,6 +1384,7 @@ export default function InventoryPage() {
                     <option value="upi">UPI</option>
                     <option value="cash">Cash</option>
                     <option value="credit">Credit / Account Payable</option>
+                    <option value="card">Debit / Credit Card</option>
                   </select>
                 </label>
                 <label>Notes

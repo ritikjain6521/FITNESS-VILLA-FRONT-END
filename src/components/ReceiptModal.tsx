@@ -74,7 +74,6 @@ export default function ReceiptModal({
             {receipt.gymAddress && <div className="receipt-meta">{receipt.gymAddress}</div>}
             <div className="receipt-meta">
               {receipt.gymPhone ? `Tel: ${receipt.gymPhone}` : ''}
-              {receipt.gymGstin ? ` · GSTIN: ${receipt.gymGstin}` : ''}
             </div>
           </div>
 
@@ -132,12 +131,6 @@ export default function ReceiptModal({
               <span>Subtotal</span>
               <span>{money(receipt.subtotalPaise)}</span>
             </div>
-            {receipt.taxPaise ? (
-              <div className="receipt-total-row">
-                <span>Tax / GST</span>
-                <span>+{money(receipt.taxPaise)}</span>
-              </div>
-            ) : null}
             {receipt.discountPaise ? (
               <div className="receipt-total-row receipt-discount">
                 <span>Discount</span>

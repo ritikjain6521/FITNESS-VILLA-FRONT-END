@@ -9,8 +9,10 @@ import {
   AlertTriangle,
   CheckCircle,
   MessageSquare,
+  Zap,
 } from 'lucide-react';
 import ReceiptModal, { ReceiptData } from '../components/ReceiptModal';
+import { openRazorpayCheckout } from '../razorpay';
 
 type Member = { _id: string; name: string; email: string; phone?: string };
 type Payment = {
@@ -87,6 +89,36 @@ export default function PaymentsPage() {
     e.preventDefault();
     setFormError('');
     setSaving(true);
+
+    if (form.method === 'razorpay') {
+      try {
+        const selectedM = members.find((m) => m._id === form.member);
+        const amountPaise = Math.round(Number(form.amountPaise) * 100);
+        const rzpResult = await openRazorpayCheckout({
+          amountPaise,
+          memberId: form.member,
+          membershipId: form.membershipId || undefined,
+          customerName: selectedM?.name,
+          customerEmail: selectedM?.email,
+          customerPhone: selectedM?.phone,
+          description: form.notes || 'Gym Fee Payment',
+        });
+
+        setShowForm(false);
+        setForm((f) => ({ ...f, amountPaise: '', notes: '', membershipId: '' }));
+        load();
+
+        if (rzpResult.payment) {
+          showReceiptForPayment(rzpResult.payment, rzpResult.whatsappReceiptUrl);
+        }
+      } catch (err: any) {
+        setFormError(err.message || 'Razorpay checkout cancelled or failed');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     try {
       const res = await api<{
         item: Payment;
@@ -244,9 +276,10 @@ export default function PaymentsPage() {
                 value={form.method}
                 onChange={(e) => setForm((f) => ({ ...f, method: e.target.value }))}
               >
-                <option value="upi">UPI / GPay / PhonePe</option>
+                <option value="razorpay">⚡ Razorpay Payment Gateway (Live UPI QR, Card, Netbanking)</option>
+                <option value="upi">UPI / GPay / PhonePe (Manual)</option>
                 <option value="cash">Cash</option>
-                <option value="card">Card / POS Terminal</option>
+                <option value="card">Card / POS Terminal (Offline)</option>
                 <option value="bank_transfer">Bank Transfer / IMPS</option>
               </select>
             </label>
@@ -267,8 +300,12 @@ export default function PaymentsPage() {
                 Cancel
               </button>
               <button type="submit" className="btn btn-green" disabled={saving || !form.member}>
-                <DollarSign size={16} />
-                {saving ? 'Generating Receipt…' : 'Save Payment & Generate Receipt'}
+                {form.method === 'razorpay' ? <Zap size={16} /> : <DollarSign size={16} />}
+                {saving
+                  ? 'Processing…'
+                  : form.method === 'razorpay'
+                  ? 'Launch Razorpay Gateway Checkout'
+                  : 'Save Payment & Generate Receipt'}
               </button>
             </div>
           </form>
@@ -414,11 +451,29 @@ export default function PaymentsPage() {
                               <MessageSquare size={13} /> WhatsApp Due Alert
                             </button>
                             <button
+                              className="btn btn-outline btn-sm"
+                              style={{ borderColor: 'var(--green)', color: 'var(--green)' }}
+                              onClick={() => {
+                                setForm({
+                                  member: d.memberId,
+                                  amountPaise: (d.duePaise / 100).toString(),
+                                  method: 'razorpay',
+                                  notes: `Clearing due balance for ${d.planName}`,
+                                  membershipId: d.membershipId,
+                                });
+                                setShowForm(true);
+                                setActiveTab('payments');
+                              }}
+                              title="Collect Due Online via Razorpay Gateway"
+                            >
+                              <Zap size={13} /> Razorpay Online
+                            </button>
+                            <button
                               className="btn btn-green btn-sm"
                               onClick={() => handleQuickPayDue(d)}
-                              title="Clear Due Balance"
+                              title="Clear Due Balance Manually"
                             >
-                              <CheckCircle size={13} /> Pay Balance
+                              <CheckCircle size={13} /> Pay Manual
                             </button>
                           </div>
                         </td>

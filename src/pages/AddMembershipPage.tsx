@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, money } from '../api';
-import { ArrowLeft, CreditCard, CheckCircle } from 'lucide-react';
+import { openRazorpayCheckout } from '../razorpay';
+import { ArrowLeft, CreditCard, CheckCircle, Zap } from 'lucide-react';
 
 type Member = { _id: string; name: string; email: string; phone?: string };
 type Plan = { _id: string; name: string; pricePaise: number; durationDays: number; description: string };
@@ -17,7 +18,7 @@ export default function AddMembershipPage() {
   const [selectedPlan, setSelectedPlan] = useState('');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [recordPayment, setRecordPayment] = useState(true);
-  const [paymentMethod, setPaymentMethod] = useState('upi');
+  const [paymentMethod, setPaymentMethod] = useState('razorpay');
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -66,16 +67,29 @@ export default function AddMembershipPage() {
 
       // Optionally record payment
       if (recordPayment && activePlan) {
-        await api('/payments/manual', {
-          method: 'POST',
-          body: JSON.stringify({
-            member: selectedMember,
-            membership: res.item._id,
+        if (paymentMethod === 'razorpay') {
+          const selectedM = members.find(m => m._id === selectedMember);
+          await openRazorpayCheckout({
             amountPaise: activePlan.pricePaise,
-            method: paymentMethod,
-            notes: `Initial payment for ${activePlan.name}`,
-          }),
-        }).catch(err => console.warn('Payment recording note:', err));
+            memberId: selectedMember,
+            membershipId: res.item._id,
+            customerName: selectedM?.name,
+            customerEmail: selectedM?.email,
+            customerPhone: selectedM?.phone,
+            description: `Membership payment for ${activePlan.name}`,
+          });
+        } else {
+          await api('/payments/manual', {
+            method: 'POST',
+            body: JSON.stringify({
+              member: selectedMember,
+              membership: res.item._id,
+              amountPaise: activePlan.pricePaise,
+              method: paymentMethod,
+              notes: `Initial payment for ${activePlan.name}`,
+            }),
+          }).catch(err => console.warn('Payment recording note:', err));
+        }
       }
 
       navigate(`/dashboard/members/${selectedMember}`);
@@ -180,11 +194,12 @@ export default function AddMembershipPage() {
                 <select
                   value={paymentMethod}
                   onChange={e => setPaymentMethod(e.target.value)}
-                  style={{ minWidth: '160px', padding: '8px 12px' }}
+                  style={{ minWidth: '180px', padding: '8px 12px' }}
                 >
-                  <option value="upi">UPI / GPay / Paytm</option>
+                  <option value="razorpay">⚡ Razorpay Online Gateway</option>
+                  <option value="upi">UPI / GPay / Paytm (Manual)</option>
                   <option value="cash">Cash</option>
-                  <option value="card">Card / POS</option>
+                  <option value="card">Card / POS (Manual)</option>
                   <option value="bank_transfer">Bank Transfer</option>
                 </select>
                 <span style={{ fontSize: '13px', color: 'var(--green)', fontWeight: 700 }}>
@@ -199,7 +214,12 @@ export default function AddMembershipPage() {
           <div className="form-actions full-width">
             <button type="button" className="btn btn-outline" onClick={() => navigate(-1)}>Cancel</button>
             <button type="submit" className="btn btn-green" disabled={submitting}>
-              <CreditCard size={16}/>{submitting ? 'Creating…' : 'Activate Membership'}
+              {recordPayment && paymentMethod === 'razorpay' ? <Zap size={16} /> : <CreditCard size={16}/>}
+              {submitting
+                ? 'Processing…'
+                : recordPayment && paymentMethod === 'razorpay'
+                ? 'Pay via Razorpay & Activate'
+                : 'Activate Membership'}
             </button>
           </div>
         </form>
