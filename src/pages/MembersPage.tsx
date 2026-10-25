@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, fmt } from '../api';
-import { Search, UserPlus, Edit, ChevronRight } from 'lucide-react';
+import { Search, UserPlus, Edit, ChevronRight, Trash2 } from 'lucide-react';
 
 type Member = { _id: string; name: string; email: string; phone?: string; role: string; active: boolean; createdAt: string };
 
@@ -27,6 +27,18 @@ export default function MembersPage() {
   useEffect(() => { load(1, ''); }, []);
 
   function handleSearch(e: React.FormEvent) { e.preventDefault(); load(1, search); }
+
+  async function deleteMember(e: React.MouseEvent, id: string, name: string) {
+    e.stopPropagation();
+    if (!window.confirm(`Are you sure you want to delete/deactivate member "${name}"?`)) return;
+    try {
+      await api(`/members/${id}`, { method: 'DELETE' });
+      setItems(prev => prev.filter(m => m._id !== id));
+      setTotal(t => Math.max(0, t - 1));
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete member');
+    }
+  }
 
   return (
     <div className="page">
@@ -72,7 +84,19 @@ export default function MembersPage() {
                     <td><span className="pill">{m.role}</span></td>
                     <td><span className={`badge ${m.active ? 'badge-green' : 'badge-red'}`}>{m.active ? 'Active' : 'Inactive'}</span></td>
                     <td>{fmt(m.createdAt)}</td>
-                    <td><ChevronRight size={16} className="muted"/></td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                        <button
+                          className="icon-btn danger"
+                          style={{ padding: '6px' }}
+                          onClick={(e) => deleteMember(e, m._id, m.name)}
+                          title="Delete Member"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                        <ChevronRight size={16} className="muted" />
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

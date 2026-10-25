@@ -11,6 +11,7 @@ import {
   Bell,
   Clock,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 
 type Membership = {
@@ -109,6 +110,18 @@ export default function MembershipsPage() {
     }
   }
 
+  async function handleDeleteMembership(e: React.MouseEvent, id: string, memberName: string) {
+    e.stopPropagation();
+    if (!window.confirm(`Are you sure you want to delete/cancel the membership record for "${memberName}"?`)) return;
+    try {
+      await api(`/memberships/${id}`, { method: 'DELETE' });
+      setItems((prev) => prev.filter((m) => m._id !== id));
+      load();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete membership');
+    }
+  }
+
   const upcoming = items.filter(
     (i) => i.status === 'active' && daysLeft(i.endDate) <= 7 && daysLeft(i.endDate) >= 0
   );
@@ -200,11 +213,12 @@ export default function MembershipsPage() {
                       <th>Expires</th>
                       <th>Status</th>
                       <th>Days Left</th>
+                      <th style={{ textAlign: 'right' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {items.length === 0 ? (
-                      <tr><td colSpan={6} className="empty-td">No memberships found.</td></tr>
+                      <tr><td colSpan={7} className="empty-td">No memberships found.</td></tr>
                     ) : (
                       items.map((m) => {
                         const dl = daysLeft(m.endDate);
@@ -247,6 +261,16 @@ export default function MembershipsPage() {
                               ) : (
                                 '—'
                               )}
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <button
+                                className="icon-btn danger"
+                                style={{ padding: '6px' }}
+                                onClick={(e) => handleDeleteMembership(e, m._id, m.member.name)}
+                                title="Delete / Cancel Membership"
+                              >
+                                <Trash2 size={13} />
+                              </button>
                             </td>
                           </tr>
                         );
@@ -330,6 +354,14 @@ export default function MembershipsPage() {
                             title={exp.email ? `Send Email to ${exp.email}` : 'No email address registered'}
                           >
                             <Mail size={13} /> {sendingEmailId === exp.membershipId ? 'Sending…' : 'Email'}
+                          </button>
+                          <button
+                            className="icon-btn danger"
+                            style={{ padding: '6px' }}
+                            onClick={(e) => handleDeleteMembership(e, exp.membershipId, exp.name)}
+                            title="Delete / Cancel Membership"
+                          >
+                            <Trash2 size={13} />
                           </button>
                         </div>
                       </td>

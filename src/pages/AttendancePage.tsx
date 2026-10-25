@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, fmt } from '../api';
 import {
   Search, CheckCircle, LogOut, UserCheck, ShieldCheck,
-  Camera, X, AlertTriangle, Check, BellRing, Sparkles
+  Camera, X, AlertTriangle, Check, BellRing, Sparkles, Trash2
 } from 'lucide-react';
 
 type Member = { _id: string; name: string; email: string; phone?: string };
@@ -118,6 +118,20 @@ export default function AttendancePage() {
       setError(err.message || 'Rejection failed');
     } finally {
       setProcessingId(null);
+    }
+  }
+
+  async function deleteAttendance(id: string, memberName?: string) {
+    const label = memberName ? `for ${memberName}` : '';
+    if (!window.confirm(`Are you sure you want to delete this check-in record ${label}?`)) return;
+    try {
+      await api(`/attendance/${id}`, { method: 'DELETE' });
+      setItems(prev => prev.filter(a => a._id !== id));
+      setPendingItems(prev => prev.filter(a => a._id !== id));
+      setSuccess('Attendance record deleted.');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete attendance record');
     }
   }
 
@@ -361,11 +375,21 @@ export default function AttendancePage() {
                         </td>
                         <td><span className={a.checkOutAt ? 'muted' : 'badge badge-yellow'}>{dur}</span></td>
                         <td>
-                          {!a.checkOutAt && !isRejected && (
-                            <button className="btn btn-outline btn-sm" onClick={() => checkOut(a._id)}>
-                              <LogOut size={13}/> Check Out
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            {!a.checkOutAt && !isRejected && (
+                              <button className="btn btn-outline btn-sm" onClick={() => checkOut(a._id)}>
+                                <LogOut size={13}/> Check Out
+                              </button>
+                            )}
+                            <button
+                              className="icon-btn danger"
+                              style={{ padding: '5px' }}
+                              onClick={() => deleteAttendance(a._id, a.member?.name)}
+                              title="Delete Check-in Record"
+                            >
+                              <Trash2 size={13} />
                             </button>
-                          )}
+                          </div>
                         </td>
                       </tr>
                     );

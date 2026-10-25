@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, fmt } from '../api';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, Trash2 } from 'lucide-react';
 
 type Enquiry = { _id: string; name: string; email?: string; phone?: string; message: string; interest: string; status: string; createdAt: string };
 
@@ -25,6 +25,16 @@ export default function EnquiriesPage() {
   async function updateStatus(id: string, s: string) {
     await api(`/enquiries/${id}`, { method: 'PATCH', body: JSON.stringify({ status: s }) });
     load();
+  }
+
+  async function handleDeleteEnquiry(id: string, name: string) {
+    if (!window.confirm(`Are you sure you want to delete the enquiry from "${name}"?`)) return;
+    try {
+      await api(`/enquiries/${id}`, { method: 'DELETE' });
+      setItems(prev => prev.filter(e => e._id !== id));
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete enquiry');
+    }
   }
 
   return (
@@ -61,12 +71,22 @@ export default function EnquiriesPage() {
                       <td><span className={`badge ${statusColors[e.status]}`}>{e.status}</span></td>
                       <td>{fmt(e.createdAt)}</td>
                       <td>
-                        <select value={e.status} onChange={ev => updateStatus(e._id, ev.target.value)} className="inline-select">
-                          <option value="new">New</option>
-                          <option value="contacted">Contacted</option>
-                          <option value="converted">Converted</option>
-                          <option value="closed">Closed</option>
-                        </select>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <select value={e.status} onChange={ev => updateStatus(e._id, ev.target.value)} className="inline-select">
+                            <option value="new">New</option>
+                            <option value="contacted">Contacted</option>
+                            <option value="converted">Converted</option>
+                            <option value="closed">Closed</option>
+                          </select>
+                          <button
+                            className="icon-btn danger"
+                            style={{ padding: '5px' }}
+                            onClick={() => handleDeleteEnquiry(e._id, e.name)}
+                            title="Delete Enquiry"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))

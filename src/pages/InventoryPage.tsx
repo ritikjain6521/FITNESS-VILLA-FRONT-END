@@ -19,6 +19,7 @@ import {
   ChevronRight,
   Info,
   Zap,
+  Trash2,
 } from 'lucide-react';
 import ReceiptModal, { ReceiptData } from '../components/ReceiptModal';
 import { openRazorpayCheckout } from '../razorpay';
@@ -234,6 +235,28 @@ export default function InventoryPage() {
       alert(err.message || 'Stock adjustment failed');
     } finally {
       setAdjusting(false);
+    }
+  }
+
+  async function handleDeleteProduct(id: string, name: string) {
+    if (!window.confirm(`Are you sure you want to delete product "${name}"? It will be removed from active inventory.`)) return;
+    try {
+      await api(`/inventory/products/${id}`, { method: 'DELETE' });
+      setProducts(prev => prev.filter(p => p._id !== id));
+      load();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete product');
+    }
+  }
+
+  async function handleDeleteSale(id: string, saleNumber: string) {
+    if (!window.confirm(`Are you sure you want to delete sale ${saleNumber}? Product stock will be returned to inventory.`)) return;
+    try {
+      await api(`/inventory/sales/${id}`, { method: 'DELETE' });
+      setSales(prev => prev.filter(s => s._id !== id));
+      load();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete sale');
     }
   }
 
@@ -747,13 +770,22 @@ export default function InventoryPage() {
                             <td><strong style={{ color: 'var(--green)' }}>{money(p.sellingPricePaise)}</strong></td>
                             <td><span className="pill" style={{ color: margin > 20 ? '#86efac' : '#fde047' }}>+{margin}%</span></td>
                             <td style={{ textAlign: 'right' }}>
-                              <button
-                                className="btn btn-outline btn-sm"
-                                onClick={() => { setAdjustTarget(p); setAdjustQty('10'); }}
-                                title="Adjust or restock stock level"
-                              >
-                                <RefreshCw size={12} /> Restock
-                              </button>
+                              <div style={{ display: 'inline-flex', gap: '6px' }}>
+                                <button
+                                  className="btn btn-outline btn-sm"
+                                  onClick={() => { setAdjustTarget(p); setAdjustQty('10'); }}
+                                  title="Adjust or restock stock level"
+                                >
+                                  <RefreshCw size={12} /> Restock
+                                </button>
+                                <button
+                                  className="icon-btn danger"
+                                  onClick={() => handleDeleteProduct(p._id, p.name)}
+                                  title="Delete Product"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -818,6 +850,13 @@ export default function InventoryPage() {
                             title="Share Bill on WhatsApp"
                           >
                             <Share2 size={13} /> WhatsApp
+                          </button>
+                          <button
+                            className="icon-btn danger"
+                            onClick={() => handleDeleteSale(s._id, s.saleNumber)}
+                            title="Delete Sale (Restores Stock)"
+                          >
+                            <Trash2 size={13} />
                           </button>
                         </div>
                       </td>

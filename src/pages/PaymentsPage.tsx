@@ -10,6 +10,7 @@ import {
   CheckCircle,
   MessageSquare,
   Zap,
+  Trash2,
 } from 'lucide-react';
 import ReceiptModal, { ReceiptData } from '../components/ReceiptModal';
 import { openRazorpayCheckout } from '../razorpay';
@@ -201,6 +202,18 @@ export default function PaymentsPage() {
     setActiveTab('payments');
   }
 
+  async function handleDeletePayment(id: string, receiptNo?: string) {
+    const label = receiptNo || 'this payment record';
+    if (!window.confirm(`Are you sure you want to delete payment record (${label})?`)) return;
+    try {
+      await api(`/payments/${id}`, { method: 'DELETE' });
+      setItems((prev) => prev.filter((p) => p._id !== id));
+      load();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete payment');
+    }
+  }
+
   const totalPaid = items.filter((i) => i.status === 'paid').reduce((s, i) => s + i.amountPaise, 0);
 
   return (
@@ -377,6 +390,13 @@ export default function PaymentsPage() {
                                 title="Share Receipt to WhatsApp"
                               >
                                 <Share2 size={13} /> WhatsApp
+                              </button>
+                              <button
+                                className="icon-btn danger"
+                                onClick={() => handleDeletePayment(p._id, p.receiptNumber)}
+                                title="Delete Payment Record"
+                              >
+                                <Trash2 size={13} />
                               </button>
                             </div>
                           </td>
