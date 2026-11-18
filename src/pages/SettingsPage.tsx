@@ -29,6 +29,7 @@ type GymSettings = {
   receiptPrefix: string;
   memberIdPrefix: string;
   instagramUrl: string;
+  resendApiKey?: string;
   smtpHost?: string;
   smtpPort?: number;
   smtpUser?: string;
@@ -112,6 +113,7 @@ export default function SettingsPage() {
         method: 'POST',
         body: JSON.stringify({
           to: testEmail,
+          resendApiKey: form.resendApiKey,
           smtpHost: form.smtpHost,
           smtpPort: form.smtpPort || 465,
           smtpUser: form.smtpUser,
@@ -357,8 +359,25 @@ export default function SettingsPage() {
               सदस्यों को सीधे उनके इनबॉक्स में 100% लाइव हिंदी ईमेल भेजने के लिए अपनी Gmail App Password या SMTP जानकारी दर्ज करें।
             </p>
             <div className="form-grid">
+              <label className="full-width" style={{ background: 'rgba(181, 242, 61, 0.05)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(181, 242, 61, 0.2)' }}>
+                <span style={{ color: 'var(--green)', fontWeight: 800 }}>⚡ Resend API Key (Cloud / Render Production के लिए अनुशंसित)</span>
+                <input
+                  type="password"
+                  value={form.resendApiKey || ''}
+                  onChange={(e) => set('resendApiKey', e.target.value)}
+                  placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxx"
+                  style={{ marginTop: 6 }}
+                />
+                <small className="muted" style={{ marginTop: 6, display: 'block', color: '#c5ccc2' }}>
+                  💡 <strong>Render फ्री सर्वर के लिए:</strong> Render का फ़्री सर्वर आउटबाउंड SMTP (Ports 465/587) को ब्लॉक करता है जिससे Connection Timeout आता है। 
+                  <a href="https://resend.com" target="_blank" rel="noreferrer" style={{ color: 'var(--green)', textDecoration: 'underline', marginLeft: 4 }}>
+                    resend.com
+                  </a> पर 1 मिनट में मुफ़्त खाता बनाकर API Key प्राप्त करें और यहाँ पेस्ट करें। यह HTTPS (Port 443) पर 100% बिना टाइमआउट के कार्य करता है।
+                </small>
+              </label>
+
               <label>
-                SMTP Host
+                SMTP Host (Localhost / Standard)
                 <input
                   value={form.smtpHost || ''}
                   onChange={(e) => set('smtpHost', e.target.value)}
