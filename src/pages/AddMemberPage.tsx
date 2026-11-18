@@ -568,6 +568,10 @@ export default function AddMemberPage() {
                   <KeyRound size={14} /> 🔐 सदस्य पोर्टल लॉगिन विवरण (Login Credentials)
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 4, fontSize: 12 }}>
+                  <span style={{ color: '#9ca3af' }}>पोर्टल URL:</span>
+                  <a href="https://fitness-villa-front-end.vercel.app/login" target="_blank" rel="noreferrer" style={{ color: '#b5f23d', textDecoration: 'none', fontWeight: 600 }}>
+                    https://fitness-villa-front-end.vercel.app/login
+                  </a>
                   <span style={{ color: '#9ca3af' }}>लॉगिन आईडी:</span>
                   <span style={{ color: '#fff', fontFamily: 'monospace', fontWeight: 600 }}>{form.email || 'member@gmail.com'}</span>
                   <span style={{ color: '#9ca3af' }}>लॉगिन पासवर्ड:</span>
