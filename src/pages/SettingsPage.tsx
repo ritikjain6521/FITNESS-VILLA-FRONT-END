@@ -29,6 +29,8 @@ type GymSettings = {
   receiptPrefix: string;
   memberIdPrefix: string;
   instagramUrl: string;
+  googleScriptUrl?: string;
+  brevoApiKey?: string;
   resendApiKey?: string;
   smtpHost?: string;
   smtpPort?: number;
@@ -113,6 +115,8 @@ export default function SettingsPage() {
         method: 'POST',
         body: JSON.stringify({
           to: testEmail,
+          googleScriptUrl: form.googleScriptUrl,
+          brevoApiKey: form.brevoApiKey,
           resendApiKey: form.resendApiKey,
           smtpHost: form.smtpHost,
           smtpPort: form.smtpPort || 465,
@@ -359,8 +363,29 @@ export default function SettingsPage() {
               सदस्यों को सीधे उनके इनबॉक्स में 100% लाइव हिंदी ईमेल भेजने के लिए अपनी Gmail App Password या SMTP जानकारी दर्ज करें।
             </p>
             <div className="form-grid">
+              {/* Option 1: Google Apps Script Webhook (Best for Render + Gmail without custom domain) */}
+              <label className="full-width" style={{ background: 'rgba(34, 197, 94, 0.08)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.3)' }}>
+                <span style={{ color: '#4ade80', fontWeight: 800, fontSize: '15px' }}>
+                  ⭐ विकल्प 1: Google Apps Script Webhook (Render पर 100% मुफ़्त Gmail डिलीवरी - डोमेन की ज़रूरत नहीं!)
+                </span>
+                <input
+                  type="text"
+                  value={form.googleScriptUrl || ''}
+                  onChange={(e) => set('googleScriptUrl', e.target.value)}
+                  placeholder="https://script.google.com/macros/s/AKfycb.../exec"
+                  style={{ marginTop: 8 }}
+                />
+                <small className="muted" style={{ marginTop: 8, display: 'block', color: '#e2e8f0', lineHeight: 1.5 }}>
+                  💡 <strong>Gmail से सीधे ईमेल भेजने का सबसे आसान तरीका (Render Port Blocks से सुरक्षित):</strong><br />
+                  1. <a href="https://script.new" target="_blank" rel="noreferrer" style={{ color: '#4ade80', textDecoration: 'underline' }}>script.new</a> खोलें。<br />
+                  2. कोड पेस्ट करें: <code>function doPost(e) &#123; const d = JSON.parse(e.postData.contents); GmailApp.sendEmail(d.to, d.subject, d.text, &#123; htmlBody: d.html, name: d.fromName || "Fitness Villa" &#125;); return ContentService.createTextOutput(JSON.stringify(&#123;success:true&#125;)); &#125;</code><br />
+                  3. ऊपर <strong>Deploy → New deployment → Web app</strong> चुनें, <strong>Who has access: Anyone</strong> करें और URL यहाँ पेस्ट कर दें।
+                </small>
+              </label>
+
+              {/* Option 2: Resend API Key */}
               <label className="full-width" style={{ background: 'rgba(181, 242, 61, 0.05)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(181, 242, 61, 0.2)' }}>
-                <span style={{ color: 'var(--green)', fontWeight: 800 }}>⚡ Resend API Key (Cloud / Render Production के लिए अनुशंसित)</span>
+                <span style={{ color: 'var(--green)', fontWeight: 800 }}>⚡ विकल्प 2: Resend API Key (कस्टम डोमेन के साथ)</span>
                 <input
                   type="password"
                   value={form.resendApiKey || ''}
@@ -369,10 +394,7 @@ export default function SettingsPage() {
                   style={{ marginTop: 6 }}
                 />
                 <small className="muted" style={{ marginTop: 6, display: 'block', color: '#c5ccc2' }}>
-                  💡 <strong>Render फ्री सर्वर के लिए:</strong> Render का फ़्री सर्वर आउटबाउंड SMTP (Ports 465/587) को ब्लॉक करता है जिससे Connection Timeout आता है। 
-                  <a href="https://resend.com" target="_blank" rel="noreferrer" style={{ color: 'var(--green)', textDecoration: 'underline', marginLeft: 4 }}>
-                    resend.com
-                  </a> पर 1 मिनट में मुफ़्त खाता बनाकर API Key प्राप्त करें और यहाँ पेस्ट करें। यह HTTPS (Port 443) पर 100% बिना टाइमआउट के कार्य करता है।
+                  नोट: Resend से केवल तभी ईमेल भेजे जा सकते हैं जब आपके पास अपना कस्टम डोमेन (जैसे fitnessvilla.in) हो। मुफ़्त Gmail के लिए ऊपर दिया गया विकल्प 1 चुनें।
                 </small>
               </label>
 
