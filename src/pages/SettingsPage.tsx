@@ -10,6 +10,8 @@ import {
   CheckCircle2,
   AlertTriangle,
   RefreshCw,
+  Mail,
+  Send,
 } from 'lucide-react';
 
 type GymSettings = {
@@ -27,6 +29,11 @@ type GymSettings = {
   receiptPrefix: string;
   memberIdPrefix: string;
   instagramUrl: string;
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpUser?: string;
+  smtpPass?: string;
+  smtpFrom?: string;
 };
 
 type NotificationTemplate = {
@@ -58,6 +65,11 @@ export default function SettingsPage() {
   // Template editing state
   const [savingTemplateId, setSavingTemplateId] = useState<string | null>(null);
 
+  // SMTP Test Email state
+  const [testEmail, setTestEmail] = useState('');
+  const [testingEmail, setTestingEmail] = useState(false);
+  const [testEmailResult, setTestEmailResult] = useState('');
+
   useEffect(() => {
     Promise.all([
       api<{ settings: GymSettings }>('/settings'),
@@ -66,6 +78,7 @@ export default function SettingsPage() {
       .then(([s, t]) => {
         setForm(s.settings);
         setTemplates(t.items || []);
+        if (s.settings?.email) setTestEmail(s.settings.email);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -81,11 +94,29 @@ export default function SettingsPage() {
     setSuccess('');
     try {
       await api('/settings', { method: 'PATCH', body: JSON.stringify(form) });
-      setSuccess('Settings saved successfully!');
+      setSuccess('सेटिंग्स सफलतापूर्वक सहेजी गईं! (Settings saved successfully!)');
     } catch (err: any) {
       setError(err.message || 'Save failed');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSendTestEmail(e: React.FormEvent) {
+    e.preventDefault();
+    if (!testEmail) return;
+    setTestingEmail(true);
+    setTestEmailResult('');
+    try {
+      const res = await api<{ message: string }>('/notifications/test-email', {
+        method: 'POST',
+        body: JSON.stringify({ to: testEmail }),
+      });
+      setTestEmailResult(`✅ ${res.message}`);
+    } catch (err: any) {
+      setTestEmailResult(`❌ ${err.message || 'परीक्षण असफल'}`);
+    } finally {
+      setTestingEmail(false);
     }
   }
 
@@ -103,32 +134,33 @@ export default function SettingsPage() {
   }
 
   // Handle Backup Restore
-  async function handleRestoreSubmit(e: React.FormEvent) {
+  async function handleRestoreBackup(e: React.FormEvent) {
     e.preventDefault();
-    if (!restoreFile) return;
-
-    if (restoreMode === 'replace') {
-      const confirmReplace = window.confirm(
-        'WARNING: "Replace" mode will overwrite existing database records with the backup file data. Are you sure you want to proceed?'
-      );
-      if (!confirmReplace) return;
+    if (!restoreFile) {
+      alert('Please select a JSON backup file to restore.');
+      return;
     }
+
+    const confirmMsg =
+      restoreMode === 'replace'
+        ? '⚠️ WARNING: "Replace All" mode will permanently delete existing data before restoring. Are you absolutely certain?'
+        : 'Restore will merge backup records with current database. Continue?';
+
+    if (!window.confirm(confirmMsg)) return;
 
     setRestoring(true);
     setRestoreSummary(null);
-    try {
-      const formData = new FormData();
-      formData.append('file', restoreFile);
-      formData.append('mode', restoreMode);
 
-      const res = await api<any>('/backup/restore', {
+    const formData = new FormData();
+    formData.append('backup', restoreFile);
+
+    try {
+      const res = await api<any>(`/backup/restore?mode=${restoreMode}`, {
         method: 'POST',
         body: formData,
       });
-
       setRestoreSummary(res.summary);
-      setRestoreFile(null);
-      alert('Database backup restored successfully!');
+      alert('Database restored successfully!');
     } catch (err: any) {
       alert(err.message || 'Restore failed');
     } finally {
@@ -148,15 +180,22 @@ export default function SettingsPage() {
           emailBody: tmpl.emailBody,
         }),
       });
-      alert(`Template "${tmpl.label}" updated successfully!`);
+      alert(`टेम्पलेट "${tmpl.label}" सफलतापूर्वक सहेज दिया गया!`);
     } catch (err: any) {
-      alert(err.message || 'Failed to update template');
+      alert(err.message || 'टेम्पलेट सहेजने में विफल');
     } finally {
       setSavingTemplateId(null);
     }
   }
 
-  if (loading) return <div className="page-loading"><div className="spinner" /></div>;
+  if (loading) {
+    return (
+      <div className="page-loading">
+        <div className="spinner" />
+        <span>Loading settings…</span>
+      </div>
+    );
+  }
 
   return (
     <div className="page">
@@ -173,7 +212,7 @@ export default function SettingsPage() {
           className={`tab-btn ${activeTab === 'profile' ? 'active' : ''}`}
           onClick={() => setActiveTab('profile')}
         >
-          <Settings size={16} /> Gym Profile & GST
+          <Settings size={16} /> Gym Profile & Email Setup
         </button>
         <button
           className={`tab-btn ${activeTab === 'backup' ? 'active' : ''}`}
@@ -189,52 +228,60 @@ export default function SettingsPage() {
         </button>
       </div>
 
-      {/* Tab 1: Profile & Billing */}
+      {/* Tab 1: Gym Profile & SMTP Email Configuration */}
       {activeTab === 'profile' && (
         <form onSubmit={saveProfile}>
           <div className="settings-section">
             <h3><Settings size={17} /> Gym Profile Information</h3>
             <div className="form-grid">
-              <label>
+              <label className="full-width">
                 Gym Name
                 <input value={form.gymName || ''} onChange={(e) => set('gymName', e.target.value)} maxLength={100} />
               </label>
-              <label>
-                Tagline
+              <label className="full-width">
+                Tagline / Subtitle
                 <input value={form.tagline || ''} onChange={(e) => set('tagline', e.target.value)} maxLength={200} />
               </label>
               <label className="full-width">
                 Address
-                <input value={form.address || ''} onChange={(e) => set('address', e.target.value)} maxLength={400} />
-              </label>
-              <label>
-                Phone
-                <input value={form.phone || ''} onChange={(e) => set('phone', e.target.value)} maxLength={25} />
-              </label>
-              <label>
-                Email
-                <input type="email" value={form.email || ''} onChange={(e) => set('email', e.target.value)} maxLength={254} />
-              </label>
-              <label>
-                WhatsApp Helpline Number
-                <input
-                  value={form.whatsapp || ''}
-                  onChange={(e) => set('whatsapp', e.target.value)}
-                  maxLength={25}
-                  placeholder="e.g. 919876543210"
+                <textarea
+                  rows={2}
+                  value={form.address || ''}
+                  onChange={(e) => set('address', e.target.value)}
+                  maxLength={400}
                 />
               </label>
               <label>
-                Business Hours
-                <input value={form.businessHours || ''} onChange={(e) => set('businessHours', e.target.value)} maxLength={300} />
+                Phone Number
+                <input value={form.phone || ''} onChange={(e) => set('phone', e.target.value)} maxLength={25} />
               </label>
               <label>
-                Website URL
+                WhatsApp Number
+                <input value={form.whatsapp || ''} onChange={(e) => set('whatsapp', e.target.value)} maxLength={25} />
+              </label>
+              <label>
+                Public Contact Email
+                <input type="email" value={form.email || ''} onChange={(e) => set('email', e.target.value)} maxLength={254} />
+              </label>
+              <label>
+                Website
                 <input value={form.website || ''} onChange={(e) => set('website', e.target.value)} maxLength={200} />
               </label>
-              <label>
-                Instagram URL
-                <input value={form.instagramUrl || ''} onChange={(e) => set('instagramUrl', e.target.value)} maxLength={200} />
+              <label className="full-width">
+                Business Hours
+                <input
+                  value={form.businessHours || ''}
+                  onChange={(e) => set('businessHours', e.target.value)}
+                  maxLength={300}
+                />
+              </label>
+              <label className="full-width">
+                Instagram Profile URL
+                <input
+                  value={form.instagramUrl || ''}
+                  onChange={(e) => set('instagramUrl', e.target.value)}
+                  maxLength={200}
+                />
               </label>
             </div>
           </div>
@@ -296,6 +343,87 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* Email Delivery & SMTP Configuration */}
+          <div className="settings-section">
+            <h3><Mail size={17} /> Email Delivery &amp; SMTP Configuration (ईमेल सेटिंग्स)</h3>
+            <p className="muted" style={{ marginBottom: 18 }}>
+              सदस्यों को सीधे उनके इनबॉक्स में 100% लाइव हिंदी ईमेल भेजने के लिए अपनी Gmail App Password या SMTP जानकारी दर्ज करें।
+            </p>
+            <div className="form-grid">
+              <label>
+                SMTP Host
+                <input
+                  value={form.smtpHost || ''}
+                  onChange={(e) => set('smtpHost', e.target.value)}
+                  placeholder="जैसे: smtp.gmail.com"
+                />
+              </label>
+              <label>
+                SMTP Port
+                <input
+                  type="number"
+                  value={form.smtpPort || 587}
+                  onChange={(e) => set('smtpPort', Number(e.target.value))}
+                  placeholder="587 या 465"
+                />
+              </label>
+              <label>
+                SMTP Email / Username
+                <input
+                  type="email"
+                  value={form.smtpUser || ''}
+                  onChange={(e) => set('smtpUser', e.target.value)}
+                  placeholder="जैसे: fitnessvilla@gmail.com"
+                />
+              </label>
+              <label>
+                SMTP Password / App Password
+                <input
+                  type="password"
+                  value={form.smtpPass || ''}
+                  onChange={(e) => set('smtpPass', e.target.value)}
+                  placeholder="16-अक्षरों का Google App Password"
+                />
+              </label>
+              <label className="full-width">
+                From Name / Address
+                <input
+                  value={form.smtpFrom || ''}
+                  onChange={(e) => set('smtpFrom', e.target.value)}
+                  placeholder='"Fitness Villa" <fitnessvilla@gmail.com>'
+                />
+                <small className="muted" style={{ marginTop: 6, display: 'block' }}>
+                  💡 <strong>Gmail का उपयोग कर रहे हैं?</strong> अपने Google Account में जाएं → <strong>Security</strong> → <strong>2-Step Verification</strong> ऑन करें → <strong>App passwords</strong> बनाकर 16-अक्षरों का कोड यहाँ पेस्ट करें।
+                </small>
+              </label>
+            </div>
+
+            {/* Test Email Box */}
+            <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                type="email"
+                placeholder="टेस्ट ईमेल पता (जैसे: test@gmail.com)"
+                value={testEmail}
+                onChange={(e) => setTestEmail(e.target.value)}
+                style={{ flex: '1 1 240px', padding: '10px 14px' }}
+              />
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={handleSendTestEmail}
+                disabled={testingEmail || !testEmail}
+              >
+                <Send size={14} />
+                {testingEmail ? 'टेस्ट ईमेल भेजा जा रहा है…' : 'परीक्षण ईमेल भेजें (Send Test Email)'}
+              </button>
+              {testEmailResult && (
+                <div style={{ width: '100%', fontSize: 13, marginTop: 6, color: testEmailResult.startsWith('✅') ? 'var(--green)' : '#ff6b6b' }}>
+                  {testEmailResult}
+                </div>
+              )}
+            </div>
+          </div>
+
           {error && <p className="error-msg">{error}</p>}
           {success && <p className="success-msg">{success}</p>}
 
@@ -314,30 +442,31 @@ export default function SettingsPage() {
           {/* Export Section */}
           <div className="settings-section">
             <h3><Download size={17} /> 1. Export Full Database Backup</h3>
-            <p className="muted" style={{ marginBottom: '16px' }}>
-              Download a complete JSON snapshot of all collections: Members, Plans, Memberships, Attendance, Payments,
-              Expenses, Products, Store Sales, and System Settings. Store this backup safely for disaster recovery.
+            <p className="muted" style={{ marginBottom: 16 }}>
+              Download a complete JSON snapshot of all members, plans, attendance records, financial transactions,
+              inventory, sales, and settings.
             </p>
             <button className="btn btn-green" onClick={handleExportBackup} disabled={exportingBackup}>
-              <Download size={16} /> {exportingBackup ? 'Generating Backup…' : 'Download Complete JSON Backup File'}
+              <Download size={16} />
+              {exportingBackup ? 'Exporting JSON…' : 'Download Full Backup (.json)'}
             </button>
           </div>
 
           {/* Restore Section */}
           <div className="settings-section">
             <h3><Upload size={17} /> 2. Restore Database from Backup</h3>
-            <p className="muted" style={{ marginBottom: '16px' }}>
-              Upload a previously exported Fitness Villa JSON backup file to restore records.
+            <p className="muted" style={{ marginBottom: 16 }}>
+              Upload a previously exported JSON backup file to restore records. Choose whether to merge with existing data
+              or replace everything.
             </p>
-
-            <form onSubmit={handleRestoreSubmit} style={{ display: 'grid', gap: '16px', maxWidth: '600px' }}>
+            <form onSubmit={handleRestoreBackup} style={{ display: 'grid', gap: '16px', maxWidth: '500px' }}>
               <label>
-                Select Backup File (.json) *
+                Select Backup JSON File
                 <input
                   type="file"
-                  required
-                  accept=".json"
+                  accept=".json,application/json"
                   onChange={(e) => setRestoreFile(e.target.files?.[0] || null)}
+                  required
                   style={{ marginTop: '6px' }}
                 />
               </label>
@@ -349,34 +478,31 @@ export default function SettingsPage() {
                   onChange={(e) => setRestoreMode(e.target.value as any)}
                   style={{ marginTop: '6px' }}
                 >
-                  <option value="merge">Merge & Upsert (Safely updates or adds missing items without wiping existing data)</option>
-                  <option value="replace">Clean & Replace (Clears collections and restores exact snapshot)</option>
+                  <option value="merge">Merge (Preserve existing, add missing)</option>
+                  <option value="replace">Replace All (⚠️ Erase current DB, restore from backup)</option>
                 </select>
               </label>
 
-              {restoreMode === 'replace' && (
-                <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid #ef4444', color: '#fca5a5', padding: '10px 14px', borderRadius: '6px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <AlertTriangle size={18} />
-                  <span>Caution: "Clean & Replace" mode will delete existing database records before restoring!</span>
-                </div>
-              )}
+              <button
+                type="submit"
+                className={`btn ${restoreMode === 'replace' ? 'btn-red' : 'btn-outline'}`}
+                disabled={restoring || !restoreFile}
+                style={{ width: 'fit-content' }}
+              >
+                <RefreshCw size={16} className={restoring ? 'spin' : ''} />
+                {restoring ? 'Restoring Database…' : 'Execute Restore'}
+              </button>
 
               {restoreSummary && (
-                <div style={{ background: 'rgba(34, 197, 94, 0.15)', border: '1px solid #22c55e', color: '#86efac', padding: '12px 16px', borderRadius: '8px', fontSize: '13px' }}>
-                  <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                    <CheckCircle2 size={16} /> Restore Succeeded:
-                  </div>
-                  <pre style={{ margin: 0, fontSize: '12px', color: '#fff' }}>
-                    {JSON.stringify(restoreSummary, null, 2)}
-                  </pre>
+                <div style={{ background: '#131b14', border: '1px solid #233125', borderRadius: '8px', padding: '16px', marginTop: '12px' }}>
+                  <h4 style={{ color: 'var(--green)', margin: '0 0 8px 0' }}>Restore Completed Successfully:</h4>
+                  <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#c5ccc2' }}>
+                    {Object.entries(restoreSummary).map(([col, cnt]) => (
+                      <li key={col}><strong>{col}:</strong> {cnt as number} records restored</li>
+                    ))}
+                  </ul>
                 </div>
               )}
-
-              <div>
-                <button type="submit" className="btn btn-green" disabled={restoring || !restoreFile}>
-                  <RefreshCw size={16} /> {restoring ? 'Restoring Database…' : 'Start Restore Process'}
-                </button>
-              </div>
             </form>
           </div>
         </div>
@@ -386,10 +512,9 @@ export default function SettingsPage() {
       {activeTab === 'templates' && (
         <div style={{ display: 'grid', gap: '20px' }}>
           <p className="muted">
-            Configure automated message content sent via WhatsApp and Email for expiring gym memberships and payment
-            receipts. You can use dynamic variables like <code>&#123;memberName&#125;</code>, <code>&#123;planName&#125;</code>,{' '}
+            सदस्यता समाप्ति और भुगतान रसीद के लिए WhatsApp और ईमेल टेम्पलेट यहाँ से संपादित करें। आप निम्नलिखित डायनामिक वेरिएबल्स का उपयोग कर सकते हैं: <code>&#123;memberName&#125;</code>, <code>&#123;planName&#125;</code>,{' '}
             <code>&#123;daysLeft&#125;</code>, <code>&#123;expiryDate&#125;</code>, <code>&#123;gymName&#125;</code>,{' '}
-            <code>&#123;gymPhone&#125;</code>.
+            <code>&#123;gymPhone&#125;</code>, <code>&#123;amount&#125;</code>.
           </p>
 
           {templates.map((tmpl, idx) => (
@@ -397,7 +522,7 @@ export default function SettingsPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                 <div>
                   <h3 style={{ margin: 0 }}>{tmpl.label}</h3>
-                  <small className="muted">Identifier: <code>{tmpl.key}</code></small>
+                  <small className="muted">कुंजी (Key): <code>{tmpl.key}</code></small>
                 </div>
                 <button
                   type="button"
@@ -405,13 +530,13 @@ export default function SettingsPage() {
                   onClick={() => handleSaveTemplate(tmpl)}
                   disabled={savingTemplateId === tmpl._id}
                 >
-                  <Save size={14} /> {savingTemplateId === tmpl._id ? 'Saving…' : 'Save Template'}
+                  <Save size={14} /> {savingTemplateId === tmpl._id ? 'सहेज रहे हैं…' : 'टेम्पलेट सहेजें'}
                 </button>
               </div>
 
               <div style={{ display: 'grid', gap: '14px' }}>
                 <label>
-                  💬 WhatsApp Message Template
+                  💬 WhatsApp Message Template (हिंदी)
                   <textarea
                     rows={4}
                     value={tmpl.whatsappBody || ''}
@@ -425,7 +550,7 @@ export default function SettingsPage() {
                 </label>
 
                 <label>
-                  ✉️ Email Subject
+                  ✉️ Email Subject (हिंदी)
                   <input
                     value={tmpl.emailSubject || ''}
                     onChange={(e) => {
@@ -438,7 +563,7 @@ export default function SettingsPage() {
                 </label>
 
                 <label>
-                  ✉️ Email Body (HTML / Text)
+                  ✉️ Email Body (HTML / Text - हिंदी)
                   <textarea
                     rows={4}
                     value={tmpl.emailBody || ''}

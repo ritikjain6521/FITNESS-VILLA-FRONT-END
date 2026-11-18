@@ -197,7 +197,7 @@ export default function PlansManagementPage() {
 
       {/* Plans Card Grid */}
       {!loading && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 20, marginBottom: 30 }}>
+        <div className="plans-admin-grid">
           {plans.map(p => (
             <div
               key={p._id}

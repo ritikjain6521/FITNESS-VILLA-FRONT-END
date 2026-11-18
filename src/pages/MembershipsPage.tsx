@@ -37,10 +37,14 @@ type ExpiringItem = {
   status: string;
   whatsappUrl: string;
   defaultMessage: string;
+  emailSubject?: string;
+  emailHtml?: string;
 };
 
 export default function MembershipsPage() {
-  const [activeTab, setActiveTab] = useState<'all' | 'expiring'>('all');
+  const [sp] = useSearchParams();
+  const initialTab = sp.get('tab') === 'expiring' ? 'expiring' : 'all';
+  const [activeTab, setActiveTab] = useState<'all' | 'expiring'>(initialTab);
   const [items, setItems] = useState<Membership[]>([]);
   const [expiringList, setExpiringList] = useState<ExpiringItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,7 +54,6 @@ export default function MembershipsPage() {
   const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
 
   const navigate = useNavigate();
-  const [sp] = useSearchParams();
 
   function load() {
     setLoading(true);
@@ -74,6 +77,12 @@ export default function MembershipsPage() {
     load();
   }, [status]);
 
+  useEffect(() => {
+    if (sp.get('tab') === 'expiring') {
+      setActiveTab('expiring');
+    }
+  }, [sp]);
+
   async function handleRunAutomatedScan() {
     setRunningCron(true);
     setCronResult(null);
@@ -82,29 +91,30 @@ export default function MembershipsPage() {
       setCronResult(res.results);
       load();
     } catch (err: any) {
-      alert(err.message || 'Automated scan failed');
+      alert(err.message || 'स्वचालित स्कैन में त्रुटि हुई');
     } finally {
       setRunningCron(false);
     }
   }
 
   async function handleSendIndividualEmail(exp: ExpiringItem) {
-    if (!exp.email) return alert('Member has no email registered');
+    if (!exp.email) return alert('सदस्य का कोई ईमेल पता पंजीकृत नहीं है!');
     setSendingEmailId(exp.membershipId);
     try {
-      await api('/notifications/send-single', {
+      const res = await api<{ message: string; isLive?: boolean }>('/notifications/send-single', {
         method: 'POST',
         body: JSON.stringify({
           memberId: exp.memberId,
           channel: 'email',
           to: exp.email,
-          subject: `Gym Membership Expiry Reminder - ${exp.planName}`,
+          subject: exp.emailSubject || `अति आवश्यक: ${exp.name} जी, आपकी फिटनेस विला जिम सदस्यता समाप्त हो रही है`,
           customMessage: exp.defaultMessage,
+          html: exp.emailHtml,
         }),
       });
-      alert(`Automated email sent successfully to ${exp.email}!`);
+      alert(res.message || `हिंदी ईमेल सफलतापूर्वक ${exp.email} पर भेज दिया गया!`);
     } catch (err: any) {
-      alert(err.message || 'Failed to send email');
+      alert(err.message || 'ईमेल भेजने में त्रुटि हुई');
     } finally {
       setSendingEmailId(null);
     }
@@ -112,13 +122,13 @@ export default function MembershipsPage() {
 
   async function handleDeleteMembership(e: React.MouseEvent, id: string, memberName: string) {
     e.stopPropagation();
-    if (!window.confirm(`Are you sure you want to delete/cancel the membership record for "${memberName}"?`)) return;
+    if (!window.confirm(`क्या आप वाकई "${memberName}" के सदस्यता रिकॉर्ड को हटाना चाहते हैं?`)) return;
     try {
       await api(`/memberships/${id}`, { method: 'DELETE' });
       setItems((prev) => prev.filter((m) => m._id !== id));
       load();
     } catch (err: any) {
-      alert(err.message || 'Failed to delete membership');
+      alert(err.message || 'रिकॉर्ड हटाने में त्रुटि हुई');
     }
   }
 
@@ -141,7 +151,7 @@ export default function MembershipsPage() {
             title="Scan active memberships, send automated emails, and queue WhatsApp alerts"
           >
             <Sparkles size={16} color="var(--green)" />
-            {runningCron ? 'Scanning…' : 'Run Automated Expiry Scan'}
+            {runningCron ? 'स्कैन जारी है…' : 'स्वचालित स्कैन चलाएं (Run Auto Scan)'}
           </button>
           <button className="btn btn-green" onClick={() => navigate('/dashboard/memberships/new')}>
             <CreditCard size={16} /> New Membership
@@ -153,7 +163,7 @@ export default function MembershipsPage() {
         <div className="alert-banner">
           <AlertTriangle size={18} />
           <span>
-            <strong>{upcoming.length}</strong> active membership{upcoming.length > 1 ? 's' : ''} expiring within the next 7 days!
+            <strong>{upcoming.length}</strong> सदस्यता{upcoming.length > 1 ? 'एं' : ''} अगले 7 दिनों में समाप्त हो रही हैं!
           </span>
         </div>
       )}
@@ -162,7 +172,7 @@ export default function MembershipsPage() {
         <div style={{ background: 'rgba(34, 197, 94, 0.15)', border: '1px solid #22c55e', color: '#86efac', padding: '14px 18px', borderRadius: '10px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <CheckCircle2 size={20} />
           <div>
-            <strong>Automated Expiry Scan Complete:</strong> Scanned {cronResult.scanned} memberships. Sent {cronResult.emailsSent} reminder emails, and queued {cronResult.whatsappQueued} WhatsApp notifications.
+            <strong>स्वचालित स्कैन संपन्न:</strong> कुल {cronResult.scanned} सदस्यताओं को जांचा गया। {cronResult.emailsSent} रिमाइंडर ईमेल भेजे गए, और {cronResult.whatsappQueued} व्हाट्सएप सूचनाएं तैयार की गईं।
           </div>
         </div>
       )}
@@ -180,7 +190,7 @@ export default function MembershipsPage() {
           onClick={() => setActiveTab('expiring')}
         >
           <Bell size={16} color={expiringList.length > 0 ? '#ef4444' : undefined} />
-          Expiring & Overdue ({expiringList.length})
+          समाप्ति एवं बकाया (Expiring & Overdue) ({expiringList.length})
         </button>
       </div>
 
@@ -200,7 +210,10 @@ export default function MembershipsPage() {
           </div>
 
           {loading ? (
-            <div className="page-loading"><div className="spinner" /></div>
+            <div className="page-loading">
+              <div className="spinner" />
+              <span>Loading memberships…</span>
+            </div>
           ) : (
             <div className="table-card">
               <div className="table-wrap">
@@ -209,8 +222,8 @@ export default function MembershipsPage() {
                     <tr>
                       <th>Member</th>
                       <th>Plan</th>
-                      <th>Start</th>
-                      <th>Expires</th>
+                      <th>Start Date</th>
+                      <th>End Date</th>
                       <th>Status</th>
                       <th>Days Left</th>
                       <th style={{ textAlign: 'right' }}>Actions</th>
@@ -218,25 +231,25 @@ export default function MembershipsPage() {
                   </thead>
                   <tbody>
                     {items.length === 0 ? (
-                      <tr><td colSpan={7} className="empty-td">No memberships found.</td></tr>
+                      <tr>
+                        <td colSpan={7} className="empty-td">
+                          No memberships found.
+                        </td>
+                      </tr>
                     ) : (
                       items.map((m) => {
                         const dl = daysLeft(m.endDate);
                         return (
-                          <tr
-                            key={m._id}
-                            className="clickable"
-                            onClick={() => navigate(`/dashboard/members/${m.member._id}`)}
-                          >
+                          <tr key={m._id} className="clickable" onClick={() => navigate(`/dashboard/members/${m.member._id}`)}>
                             <td>
                               <strong>{m.member.name}</strong>
                               <br />
-                              <small className="muted">{m.member.phone || m.member.email}</small>
+                              <small className="muted">{m.member.email}</small>
                             </td>
                             <td>
                               {m.plan.name}
                               <br />
-                              <small className="muted">{money(m.plan.pricePaise)} · {m.plan.durationDays}d</small>
+                              <small className="muted">{money(m.plan.pricePaise)}</small>
                             </td>
                             <td>{fmt(m.startDate)}</td>
                             <td>{fmt(m.endDate)}</td>
@@ -284,92 +297,129 @@ export default function MembershipsPage() {
         </>
       )}
 
-      {/* Tab 2: Expiring & Overdue with 1-click WhatsApp & Email */}
+      {/* Tab 2: Expiring & Overdue with 100% Hindi WhatsApp & Email */}
       {activeTab === 'expiring' && (
-        <div className="table-card">
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Member</th>
-                  <th>Plan</th>
-                  <th>Expiry Date</th>
-                  <th>Time Left</th>
-                  <th style={{ textAlign: 'right' }}>Automated Reminders</th>
-                </tr>
-              </thead>
-              <tbody>
-                {expiringList.length === 0 ? (
+        <div style={{ display: 'grid', gap: '16px' }}>
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(20, 28, 22, 0.95), rgba(12, 17, 13, 0.95))',
+            border: '1px solid rgba(181, 242, 61, 0.25)',
+            borderRadius: '10px',
+            padding: '16px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+          }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--green)', fontWeight: 800, fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <Sparkles size={16} /> 100% शुद्ध हिंदी स्वचालित रिमाइंडर (1-Click Hindi Reminders)
+              </div>
+              <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#c5ccc2' }}>
+                समाप्त होने वाली व समाप्त (Overdue) सदस्यताओं के लिए एक क्लिक में <strong>हिंदी WhatsApp</strong> व <strong>हिंदी ईमेल (Email)</strong> भेजें।
+              </p>
+            </div>
+            <button
+              className="btn btn-green btn-sm"
+              onClick={handleRunAutomatedScan}
+              disabled={runningCron}
+            >
+              <Sparkles size={14} />
+              {runningCron ? 'स्कैन जारी है…' : 'सभी को स्वतः सूचना भेजें (Auto Scan)'}
+            </button>
+          </div>
+
+          <div className="table-card">
+            <div className="table-wrap">
+              <table>
+                <thead>
                   <tr>
-                    <td colSpan={5} className="empty-td">
-                      🎉 No memberships are expiring within the next 14 days!
-                    </td>
+                    <th>सदस्य (Member)</th>
+                    <th>प्लान (Plan)</th>
+                    <th>समाप्ति तिथि (Expiry)</th>
+                    <th>स्थिति (Status)</th>
+                    <th style={{ textAlign: 'right' }}>हिंदी सूचना भेजें (Send Reminder)</th>
                   </tr>
-                ) : (
-                  expiringList.map((exp) => (
-                    <tr key={exp.membershipId}>
-                      <td>
-                        <strong>{exp.name}</strong>
-                        {exp.phone && <br />}
-                        {exp.phone && <small className="muted">{exp.phone}</small>}
-                      </td>
-                      <td>
-                        {exp.planName}
-                        <br />
-                        <small className="muted">{money(exp.planPricePaise)}</small>
-                      </td>
-                      <td>{fmt(exp.endDate)}</td>
-                      <td>
-                        <span
-                          className={`badge ${
-                            exp.daysRemaining < 0
-                              ? 'badge-red'
-                              : exp.daysRemaining === 0
-                              ? 'badge-red'
-                              : exp.daysRemaining <= 3
-                              ? 'badge-orange'
-                              : 'badge-yellow'
-                          }`}
-                        >
-                          {exp.daysRemaining < 0
-                            ? `Expired ${Math.abs(exp.daysRemaining)}d ago`
-                            : exp.daysRemaining === 0
-                            ? 'Expires Today'
-                            : `${exp.daysRemaining} days left`}
-                        </span>
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: '6px' }}>
-                          <button
-                            className="btn btn-sm whatsapp-btn"
-                            onClick={() => window.open(exp.whatsappUrl, '_blank')}
-                            title="Send Expiry Alert via WhatsApp"
-                          >
-                            <MessageSquare size={13} /> WhatsApp
-                          </button>
-                          <button
-                            className="btn btn-outline btn-sm"
-                            onClick={() => handleSendIndividualEmail(exp)}
-                            disabled={sendingEmailId === exp.membershipId || !exp.email}
-                            title={exp.email ? `Send Email to ${exp.email}` : 'No email address registered'}
-                          >
-                            <Mail size={13} /> {sendingEmailId === exp.membershipId ? 'Sending…' : 'Email'}
-                          </button>
-                          <button
-                            className="icon-btn danger"
-                            style={{ padding: '6px' }}
-                            onClick={(e) => handleDeleteMembership(e, exp.membershipId, exp.name)}
-                            title="Delete / Cancel Membership"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
+                </thead>
+                <tbody>
+                  {expiringList.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="empty-td" style={{ padding: '40px 20px', textAlign: 'center' }}>
+                        🎉 अगले 14 दिनों में कोई भी सदस्यता समाप्त नहीं हो रही है!
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    expiringList.map((exp) => (
+                      <tr key={exp.membershipId}>
+                        <td>
+                          <strong style={{ fontSize: '14px', color: '#fff' }}>{exp.name}</strong>
+                          {exp.phone && <br />}
+                          {exp.phone && <small className="muted">📞 {exp.phone}</small>}
+                          {exp.email && <br />}
+                          {exp.email && <small className="muted" style={{ color: '#889085' }}>✉️ {exp.email}</small>}
+                        </td>
+                        <td>
+                          <strong style={{ color: '#e5e7eb' }}>{exp.planName}</strong>
+                          <br />
+                          <small className="muted">{money(exp.planPricePaise)}</small>
+                        </td>
+                        <td>
+                          <span style={{ fontWeight: 600, color: '#e5e7eb' }}>{fmt(exp.endDate)}</span>
+                        </td>
+                        <td>
+                          <span
+                            className={`badge ${
+                              exp.daysRemaining < 0
+                                ? 'badge-red'
+                                : exp.daysRemaining === 0
+                                ? 'badge-red'
+                                : exp.daysRemaining <= 3
+                                ? 'badge-orange'
+                                : 'badge-yellow'
+                            }`}
+                            style={{ fontWeight: 700 }}
+                          >
+                            {exp.daysRemaining < 0
+                              ? `🛑 समाप्त (${Math.abs(exp.daysRemaining)} दिन पहले)`
+                              : exp.daysRemaining === 0
+                              ? '⚠️ आज समाप्त (Today)'
+                              : `⏳ ${exp.daysRemaining} दिन शेष`}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                            <button
+                              className="btn btn-sm whatsapp-btn"
+                              onClick={() => window.open(exp.whatsappUrl, '_blank')}
+                              title="हिंदी में WhatsApp संदेश भेजें"
+                            >
+                              <MessageSquare size={13} /> WhatsApp (हिंदी)
+                            </button>
+                            <button
+                              className="btn btn-outline btn-sm"
+                              style={{ borderColor: exp.email ? 'rgba(181, 242, 61, 0.4)' : undefined }}
+                              onClick={() => handleSendIndividualEmail(exp)}
+                              disabled={sendingEmailId === exp.membershipId || !exp.email}
+                              title={exp.email ? `हिंदी ईमेल भेजें: ${exp.email}` : 'सदस्य का ईमेल पंजीकृत नहीं है'}
+                            >
+                              <Mail size={13} /> {sendingEmailId === exp.membershipId ? 'भेज रहे हैं…' : 'हिंदी ईमेल भेजें'}
+                            </button>
+                            <button
+                              className="icon-btn danger"
+                              style={{ padding: '6px' }}
+                              onClick={(e) => handleDeleteMembership(e, exp.membershipId, exp.name)}
+                              title="सदस्यता रिकॉर्ड हटाएं"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

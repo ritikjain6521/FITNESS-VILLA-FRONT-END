@@ -16,6 +16,54 @@ export default function LandingPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  const [activeCategory, setActiveCategory] = useState<'cardio' | 'strength'>('cardio');
+
+  const cardioPlans = [
+    {
+      id: 'cs-monthly', label: 'MONTHLY', name: 'Cardio + Strength Monthly',
+      price: '₹1,099', desc: '₹999 + ₹100 admission. Full cardio & strength access.',
+      features: ['Unlimited Cardio Equipment', 'Full Strength Zone Access', 'Locker & Shower Facilities', 'Trainer Guidance'],
+    },
+    {
+      id: 'cs-3month', label: '3 MONTHS', name: 'Cardio + Strength Quarter',
+      price: '₹2,700', desc: 'Best short-term value for cardio & strength combo.',
+      features: ['Unlimited Cardio Equipment', 'Full Strength Zone Access', 'Locker & Shower Facilities', 'Group Classes Included'],
+    },
+    {
+      id: 'cs-6month', label: '6 MONTHS', name: 'Cardio + Strength Half Year',
+      price: '₹4,800', desc: 'Most popular — 6 months of complete gym access.',
+      features: ['Unlimited Cardio Equipment', 'Full Strength Zone Access', 'Locker & Shower Facilities', 'Group Classes + Steam Room'],
+    },
+    {
+      id: 'cs-annual', label: '1 YEAR', name: 'Cardio + Strength Annual',
+      price: '₹9,000', desc: 'Maximum savings with full year access.',
+      features: ['Unlimited Cardio Equipment', 'Full Strength Zone Access', 'Locker & Shower Facilities', 'All Classes + Steam + Priority'],
+    },
+  ];
+
+  const strengthPlans = [
+    {
+      id: 'st-monthly', label: 'MONTHLY', name: 'Strength Monthly',
+      price: '₹799', desc: '₹699 + ₹100 admission. Pure strength & iron zone access.',
+      features: ['Full Strength Zone Access', 'Olympic & Selectorized Machines', 'Locker Facilities', 'Trainer Guidance'],
+    },
+    {
+      id: 'st-3month', label: '3 MONTHS', name: 'Strength Quarter',
+      price: '₹1,899', desc: 'Build solid strength in 3 focused months.',
+      features: ['Full Strength Zone Access', 'Olympic & Selectorized Machines', 'Locker Facilities', 'Basic Group Access'],
+    },
+    {
+      id: 'st-6month', label: '6 MONTHS', name: 'Strength Half Year',
+      price: '₹3,600', desc: 'Most popular — maximum gains, minimum cost.',
+      features: ['Full Strength Zone Access', 'Olympic & Selectorized Machines', 'Locker Facilities', 'Group Classes Included'],
+    },
+    {
+      id: 'st-annual', label: '1 YEAR', name: 'Strength Annual',
+      price: '₹6,000', desc: 'Full year of raw strength training.',
+      features: ['Full Strength Zone Access', 'Olympic & Selectorized Machines', 'Locker Facilities', 'All Strength Classes + Priority'],
+    },
+  ];
+
   useEffect(() => {
     api<{ items: Plan[] }>('/plans').then(r => setPlans(r.items)).catch(() => setPlans([]));
     api<{ items: any[] }>('/announcements').then(r => setAnnouncements(r.items || [])).catch(() => setAnnouncements([]));
@@ -198,36 +246,76 @@ export default function LandingPage() {
               <div className="eyebrow">TRANSPARENT &amp; ALL-INCLUSIVE</div>
               <h2>MEMBERSHIP <span className="accent">TIERS.</span></h2>
             </div>
-            <p>Choose the tier tailored to your ambitions. All memberships include club amenities and towel service.</p>
+            <p>Choose the tier tailored to your ambitions. Non-refundable / Non-adjustable.</p>
           </div>
-          <div className="pricing-grid">
-            {plans.length ? plans.map((p, i) => (
-              <article className={`price-card hover-lift ${i === 1 ? 'featured glow-featured' : ''}`} key={p._id}>
-                {i === 1 && <div className="popular pulse-badge">MOST POPULAR</div>}
-                <div className="price-label">{p.durationDays} DAYS VIP ACCESS</div>
-                <h3>{p.name}</h3>
-                <div className="price">{money(p.pricePaise)}<span>/ plan</span></div>
-                <p className="muted">{p.description || 'Access to the Fitness Villa luxury fitness experience.'}</p>
-                <ul>
-                  {(p.features || []).map(f => (
-                    <li key={f}><Check size={16} className="check-icon"/>{f}</li>
-                  ))}
-                </ul>
-                <button
-                  className={i === 1 ? 'btn btn-green full shimmer-btn' : 'btn btn-outline full hover-glow'}
-                  onClick={() => navigate('/login')}
-                >
-                  Join Fitness Villa <ChevronRight size={17}/>
-                </button>
-              </article>
-            )) : (
-              <article className="price-card">
-                <div className="price-label">MEMBERSHIPS</div>
-                <h3>Find your plan</h3>
-                <p className="muted">Membership options will appear here once plans are added by the administrator.</p>
-                <button className="btn btn-green full" onClick={() => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' })}>Ask about membership</button>
-              </article>
-            )}
+
+          {/* Category Tab Switcher */}
+          <div className="plan-category-tabs">
+            <button
+              className={`plan-cat-btn ${activeCategory === 'cardio' ? 'active' : ''}`}
+              onClick={() => setActiveCategory('cardio')}
+            >
+              <Dumbbell size={16} /> CARDIO + STRENGTH
+            </button>
+            <button
+              className={`plan-cat-btn ${activeCategory === 'strength' ? 'active' : ''}`}
+              onClick={() => setActiveCategory('strength')}
+            >
+              <Flame size={16} /> STRENGTH ONLY
+            </button>
+          </div>
+
+          {/* Cardio + Strength Plans */}
+          {activeCategory === 'cardio' && (
+            <div className="pricing-grid-2x2 animate-fade-in">
+              {cardioPlans.map((p, i) => (
+                <article className={`price-card hover-lift ${i === 2 ? 'featured glow-featured' : ''}`} key={p.id}>
+                  {i === 2 && <div className="popular pulse-badge">BEST VALUE</div>}
+                  <div className="price-label">{p.label} · CARDIO + STRENGTH</div>
+                  <h3>{p.name}</h3>
+                  <div className="price">{p.price}<span>/ plan</span></div>
+                  <p className="muted">{p.desc}</p>
+                  <ul>
+                    {p.features.map(f => <li key={f}><Check size={16} className="check-icon"/>{f}</li>)}
+                  </ul>
+                  <button
+                    className={i === 2 ? 'btn btn-green full shimmer-btn' : 'btn btn-outline full hover-glow'}
+                    onClick={() => navigate('/login')}
+                  >
+                    Join Now <ChevronRight size={17}/>
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+
+          {/* Strength Only Plans */}
+          {activeCategory === 'strength' && (
+            <div className="pricing-grid-2x2 animate-fade-in">
+              {strengthPlans.map((p, i) => (
+                <article className={`price-card hover-lift ${i === 2 ? 'featured glow-featured' : ''}`} key={p.id}>
+                  {i === 2 && <div className="popular pulse-badge">BEST VALUE</div>}
+                  <div className="price-label">{p.label} · STRENGTH</div>
+                  <h3>{p.name}</h3>
+                  <div className="price">{p.price}<span>/ plan</span></div>
+                  <p className="muted">{p.desc}</p>
+                  <ul>
+                    {p.features.map(f => <li key={f}><Check size={16} className="check-icon"/>{f}</li>)}
+                  </ul>
+                  <button
+                    className={i === 2 ? 'btn btn-green full shimmer-btn' : 'btn btn-outline full hover-glow'}
+                    onClick={() => navigate('/login')}
+                  >
+                    Join Now <ChevronRight size={17}/>
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+
+          {/* Note */}
+          <div className="plan-note">
+            <span>⚠️</span> NOTE — NON REFUNDABLE / NON ADJUSTABLE. Contact us for more info.
           </div>
         </section>
 
