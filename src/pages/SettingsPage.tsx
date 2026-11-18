@@ -110,7 +110,14 @@ export default function SettingsPage() {
     try {
       const res = await api<{ message: string }>('/notifications/test-email', {
         method: 'POST',
-        body: JSON.stringify({ to: testEmail }),
+        body: JSON.stringify({
+          to: testEmail,
+          smtpHost: form.smtpHost,
+          smtpPort: form.smtpPort || 465,
+          smtpUser: form.smtpUser,
+          smtpPass: form.smtpPass,
+          smtpFrom: form.smtpFrom,
+        }),
       });
       setTestEmailResult(`✅ ${res.message}`);
     } catch (err: any) {
