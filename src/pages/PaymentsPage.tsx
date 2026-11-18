@@ -245,7 +245,7 @@ export default function PaymentsPage() {
           onClick={() => setActiveTab('dues')}
         >
           <AlertTriangle size={16} color={dues.length > 0 ? '#ef4444' : undefined} />
-          Outstanding Dues ({dues.length})
+          बकाया शुल्क (Outstanding Dues) ({dues.length})
         </button>
       </div>
 
@@ -417,11 +417,11 @@ export default function PaymentsPage() {
           <div className="kpi-grid mb-4" style={{ marginBottom: '20px' }}>
             <div className="kpi-card" style={{ borderColor: '#ef4444' }}>
               <div className="kpi-value" style={{ color: '#ef4444' }}>{money(totalDuePaise)}</div>
-              <div className="kpi-label">Total Uncollected Dues</div>
+              <div className="kpi-label">कुल बकाया शुल्क (Total Uncollected Dues)</div>
             </div>
             <div className="kpi-card">
               <div className="kpi-value">{dues.length}</div>
-              <div className="kpi-label">Members with Due Balances</div>
+              <div className="kpi-label">बकाया वाले सदस्य (Members with Dues)</div>
             </div>
           </div>
 
@@ -430,20 +430,20 @@ export default function PaymentsPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>Member</th>
-                    <th>Plan</th>
-                    <th>Plan Cost</th>
-                    <th>Paid So Far</th>
-                    <th>Balance Due</th>
-                    <th>Expiry Date</th>
-                    <th style={{ textAlign: 'right' }}>Actions</th>
+                    <th>सदस्य (Member)</th>
+                    <th>प्लान (Plan)</th>
+                    <th>कुल शुल्क (Cost)</th>
+                    <th>जमा राशि (Paid)</th>
+                    <th>बकाया राशि (Due Balance)</th>
+                    <th>समाप्ति तिथि (Expiry)</th>
+                    <th style={{ textAlign: 'right' }}>कार्यवाही (Actions)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {dues.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="empty-td">
-                        🎉 All members are fully paid! No outstanding dues.
+                        🎉 सभी सदस्यों का शुल्क पूर्ण रूप से जमा है! कोई बकाया नहीं है (No outstanding dues)।
                       </td>
                     </tr>
                   ) : (
@@ -466,9 +466,9 @@ export default function PaymentsPage() {
                             <button
                               className="btn btn-sm whatsapp-btn"
                               onClick={() => window.open(d.whatsappUrl, '_blank')}
-                              title="Send Due Reminder via WhatsApp"
+                              title="व्हाट्सएप पर बकाया स्मरण सूचना भेजें (Send Hindi WhatsApp Due Alert)"
                             >
-                              <MessageSquare size={13} /> WhatsApp Due Alert
+                              <MessageSquare size={13} /> व्हाट्सएप बकाया सूचना (WhatsApp Due Alert)
                             </button>
                             <button
                               className="btn btn-outline btn-sm"
@@ -486,14 +486,14 @@ export default function PaymentsPage() {
                               }}
                               title="Collect Due Online via Razorpay Gateway"
                             >
-                              <Zap size={13} /> Razorpay Online
+                              <Zap size={13} /> रेज़रपे (Razorpay)
                             </button>
                             <button
                               className="btn btn-green btn-sm"
                               onClick={() => handleQuickPayDue(d)}
                               title="Clear Due Balance Manually"
                             >
-                              <CheckCircle size={13} /> Pay Manual
+                              <CheckCircle size={13} /> जमा करें (Pay Manual)
                             </button>
                           </div>
                         </td>
