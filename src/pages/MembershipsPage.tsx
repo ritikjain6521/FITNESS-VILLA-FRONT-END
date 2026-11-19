@@ -247,9 +247,9 @@ export default function MembershipsPage() {
                               <small className="muted">{m.member.email}</small>
                             </td>
                             <td>
-                              {m.plan.name}
+                              {m.plan?.name ?? '—'}
                               <br />
-                              <small className="muted">{money(m.plan.pricePaise)}</small>
+                              <small className="muted">{money(m.plan?.pricePaise ?? 0)}</small>
                             </td>
                             <td>{fmt(m.startDate)}</td>
                             <td>{fmt(m.endDate)}</td>

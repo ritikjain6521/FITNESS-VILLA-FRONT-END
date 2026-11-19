@@ -37,7 +37,7 @@ export default function MemberProfilePage() {
   if (error) return <div className="page-error">{error}</div>;
   if (!member) return null;
 
-  const activeMem = memberships.find(m => m.status === 'active');
+  const activeMem = memberships.find(m => m.status === 'active' && m.plan);
 
   return (
     <div className="page">
@@ -58,7 +58,7 @@ export default function MemberProfilePage() {
       {/* Status banner */}
       {activeMem ? (
         <div className="status-banner status-green">
-          <span>Active membership: <strong>{activeMem.plan.name}</strong> · Expires {fmt(activeMem.endDate)} ({Math.max(0, daysLeft(activeMem.endDate))} days left)</span>
+          <span>Active membership: <strong>{activeMem.plan?.name ?? 'Plan'}</strong> · Expires {fmt(activeMem.endDate)} ({Math.max(0, daysLeft(activeMem.endDate))} days left)</span>
         </div>
       ) : (
         <div className="status-banner status-red">
@@ -94,7 +94,7 @@ export default function MemberProfilePage() {
               <tbody>
                 {memberships.length === 0 ? <tr><td colSpan={4} className="empty-td">No memberships.</td></tr> : memberships.map(m => (
                   <tr key={m._id}>
-                    <td><strong>{m.plan.name}</strong><br/><small className="muted">{money(m.plan.pricePaise)} / {m.plan.durationDays}d</small></td>
+                    <td><strong>{m.plan?.name ?? '—'}</strong><br/><small className="muted">{money(m.plan?.pricePaise ?? 0)} / {m.plan?.durationDays ?? 0}d</small></td>
                     <td>{fmt(m.startDate)}</td>
                     <td>{fmt(m.endDate)}</td>
                     <td><span className={`badge badge-${m.status === 'active' ? 'green' : m.status === 'expired' ? 'red' : 'yellow'}`}>{m.status}</span></td>

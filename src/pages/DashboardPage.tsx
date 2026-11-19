@@ -121,7 +121,7 @@ export default function DashboardPage() {
                     return (
                       <tr key={e._id}>
                         <td><div>{e.member.name}</div><small className="muted">{e.member.phone}</small></td>
-                        <td>{e.plan.name}</td>
+                        <td>{e.plan?.name ?? '—'}</td>
                         <td>{fmt(e.endDate)}</td>
                         <td><span className={`badge ${dl <= 0 ? 'badge-red' : dl <= 3 ? 'badge-orange' : 'badge-yellow'}`}>{dl <= 0 ? 'Expired' : `${dl}d`}</span></td>
                       </tr>

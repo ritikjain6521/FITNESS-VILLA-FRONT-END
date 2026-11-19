@@ -39,7 +39,7 @@ export default function MemberDashboardPage() {
   if (error) return <div className="page-error"><AlertTriangle size={24}/><span>{error}</span></div>;
   if (!data) return null;
 
-  const active = data.activeMembership;
+  const active = data.activeMembership?.plan ? data.activeMembership : null;
   const remaining = active ? Math.max(0, daysLeft(active.endDate)) : 0;
 
   return (
@@ -56,7 +56,7 @@ export default function MemberDashboardPage() {
         <div className="status-banner status-green" style={{ marginBottom: 20 }}>
           <CreditCard size={18}/>
           <span>
-            Active Plan: <strong>{active.plan.name}</strong> · Expires {fmt(active.endDate)} ({remaining} days left)
+            Active Plan: <strong>{active.plan?.name ?? 'Plan'}</strong> · Expires {fmt(active.endDate)} ({remaining} days left)
           </span>
         </div>
       ) : (
@@ -91,10 +91,10 @@ export default function MemberDashboardPage() {
       </div>
 
       {/* Active Plan Details */}
-      {active && active.plan.features && active.plan.features.length > 0 && (
+      {active && active.plan?.features && active.plan.features.length > 0 && (
         <div className="dash-card" style={{ marginTop: 20 }}>
-          <h3><CreditCard size={17} style={{ marginRight: 8 }}/>Your Plan Benefits — {active.plan.name}</h3>
-          {active.plan.description && <p className="muted" style={{ margin: '8px 0 12px' }}>{active.plan.description}</p>}
+          <h3><CreditCard size={17} style={{ marginRight: 8 }}/>Your Plan Benefits — {active.plan?.name ?? 'Plan'}</h3>
+          {active.plan?.description && <p className="muted" style={{ margin: '8px 0 12px' }}>{active.plan.description}</p>}
           <ul className="member-features-list">
             {active.plan.features.map(f => (
               <li key={f}><CheckCircle size={14} className="accent"/> {f}</li>
@@ -169,10 +169,10 @@ export default function MemberDashboardPage() {
               <tbody>
                 {data.allMemberships.map(m => (
                   <tr key={m._id}>
-                    <td><strong>{m.plan.name}</strong></td>
+                    <td><strong>{m.plan?.name ?? '—'}</strong></td>
                     <td>{fmt(m.startDate)}</td>
                     <td>{fmt(m.endDate)}</td>
-                    <td>{money(m.plan.pricePaise)}</td>
+                    <td>{money(m.plan?.pricePaise ?? 0)}</td>
                     <td><span className={`badge badge-${m.status === 'active' ? 'green' : m.status === 'expired' ? 'red' : 'yellow'}`}>{m.status}</span></td>
                   </tr>
                 ))}
