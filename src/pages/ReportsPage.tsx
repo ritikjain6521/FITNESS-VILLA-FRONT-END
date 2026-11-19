@@ -273,6 +273,15 @@ export default function ReportsPage() {
               <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: 'var(--muted)' }}>
                 Download the standardized Excel template with pre-formatted column headers to ensure smooth import.
               </p>
+              {importTarget === 'members' && (
+                <p style={{ margin: '0 0 8px 0', fontSize: '11.5px', color: 'var(--muted)', lineHeight: '1.6' }}>
+                  <strong style={{ color: 'var(--fg)' }}>Columns:</strong>{' '}
+                  Full Name, Email Address, Phone Number, Gender, Address, Initial Password,{' '}
+                  <span style={{ color: '#a78bfa' }}>Plan Name</span>,{' '}
+                  <span style={{ color: '#a78bfa' }}>Start Date (YYYY-MM-DD)</span>,{' '}
+                  <span style={{ color: '#a78bfa' }}>Send Welcome Email (yes/no)</span>
+                </p>
+              )}
               <button type="button" className="btn btn-outline btn-sm" onClick={handleDownloadTemplate}>
                 <Download size={14} /> Download Sample {importTarget === 'members' ? 'Members' : 'Products'} Template (.xlsx)
               </button>
